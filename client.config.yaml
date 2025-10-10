@@ -1,0 +1,5 @@
+project_name_override: faim-client        # pip install name
+package_name_override: faim_client        # Python import name
+class_name: FAIMClient                    # top-level client class name
+use_async: true                           # generate .sync() and .asyncio()
+use_pydantic: true
