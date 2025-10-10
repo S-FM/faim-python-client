@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from io import BytesIO
 from typing import Any, Optional, Union, cast
 
 import httpx
@@ -20,10 +21,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/v1/forecast/{model_name}/{model_version}".format(
-            model_name=model_name,
-            model_version=model_version,
-        ),
+        "url": f"/v1/forecast/{model_name}/{model_version}",
     }
 
     _kwargs["content"] = body.payload
@@ -36,9 +34,10 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Any, ErrorResponse]]:
+) -> Optional[Union[Any, ErrorResponse, File]]:
     if response.status_code == 200:
-        response_200 = response.json()
+        response_200 = File(payload=BytesIO(response.content))
+
         return response_200
 
     if response.status_code == 404:
@@ -68,7 +67,7 @@ def _parse_response(
 
 def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Any, ErrorResponse]]:
+) -> Response[Union[Any, ErrorResponse, File]]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -83,7 +82,7 @@ def sync_detailed(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Response[Union[Any, ErrorResponse]]:
+) -> Response[Union[Any, ErrorResponse, File]]:
     """Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -120,7 +119,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Any, ErrorResponse]]
+        Response[Union[Any, ErrorResponse, File]]
     """
 
     kwargs = _get_kwargs(
@@ -142,7 +141,7 @@ def sync(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Optional[Union[Any, ErrorResponse]]:
+) -> Optional[Union[Any, ErrorResponse, File]]:
     """Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -179,7 +178,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Any, ErrorResponse]
+        Union[Any, ErrorResponse, File]
     """
 
     return sync_detailed(
@@ -196,7 +195,7 @@ async def asyncio_detailed(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Response[Union[Any, ErrorResponse]]:
+) -> Response[Union[Any, ErrorResponse, File]]:
     """Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -233,7 +232,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Any, ErrorResponse]]
+        Response[Union[Any, ErrorResponse, File]]
     """
 
     kwargs = _get_kwargs(
@@ -253,7 +252,7 @@ async def asyncio(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Optional[Union[Any, ErrorResponse]]:
+) -> Optional[Union[Any, ErrorResponse, File]]:
     """Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -290,7 +289,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Any, ErrorResponse]
+        Union[Any, ErrorResponse, File]
     """
 
     return (

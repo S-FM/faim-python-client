@@ -42,9 +42,7 @@ def serialize_to_arrow(
             continue
 
         if not isinstance(arr, np.ndarray):
-            raise TypeError(
-                f'Array "{name}" must be numpy.ndarray, got {type(arr).__name__}'
-            )
+            raise TypeError(f'Array "{name}" must be numpy.ndarray, got {type(arr).__name__}')
 
         # Ensure native endianness for Arrow compatibility
         if not arr.dtype.isnative:

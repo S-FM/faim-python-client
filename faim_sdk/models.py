@@ -25,8 +25,8 @@ class ForecastRequest:
     horizon: int
     """Forecast horizon length (number of time steps to predict)"""
 
-    model_version: str = "latest"
-    """Model version to use for inference. Default: 'latest'"""
+    model_version: str = "1"
+    """Model version to use for inference. Default: '1'"""
 
     compression: Optional[str] = "zstd"
     """Arrow compression algorithm. Options: 'zstd', 'lz4', None. Default: 'zstd'"""
@@ -92,9 +92,7 @@ class ToToForecastRequest(ForecastRequest):
             if not isinstance(self.padding_mask, np.ndarray):
                 raise TypeError("padding_mask must be numpy.ndarray")
             if self.padding_mask.shape != self.x.shape:
-                raise ValueError(
-                    f"padding_mask shape {self.padding_mask.shape} must match x shape {self.x.shape}"
-                )
+                raise ValueError(f"padding_mask shape {self.padding_mask.shape} must match x shape {self.x.shape}")
 
         if self.id_mask is not None:
             if not isinstance(self.id_mask, np.ndarray):
@@ -187,9 +185,7 @@ class ForecastResponse:
     """Uncertainty estimates if available. Shape: (batch_size, horizon)"""
 
     @classmethod
-    def from_arrays_and_metadata(
-        cls, arrays: dict[str, np.ndarray], metadata: dict[str, Any]
-    ) -> "ForecastResponse":
+    def from_arrays_and_metadata(cls, arrays: dict[str, np.ndarray], metadata: dict[str, Any]) -> "ForecastResponse":
         """Construct response from deserialized Arrow data.
 
         Args:
@@ -202,15 +198,18 @@ class ForecastResponse:
         Raises:
             ValueError: If predictions array is missing
         """
-        # Primary output (required) - try multiple common names
-        predictions = arrays.get("predictions")
+        # Primary output - backend returns: point, quantiles, or samples
+        # Use point as primary prediction (most common for FlowState)
+        predictions = arrays.get("point")
+
+        # If no point predictions, check if we have quantiles or samples as alternatives
         if predictions is None:
-            predictions = arrays.get("output", arrays.get("forecast"))
+            predictions = arrays.get("quantiles")
+        if predictions is None:
+            predictions = arrays.get("samples")
 
         if predictions is None:
-            raise ValueError(
-                f"Response missing predictions array. Available keys: {list(arrays.keys())}"
-            )
+            raise ValueError(f"Response missing predictions array. Available keys: {list(arrays.keys())}")
 
         # Optional outputs (model-specific)
         quantiles = arrays.get("quantiles")

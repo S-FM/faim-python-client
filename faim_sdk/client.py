@@ -6,7 +6,6 @@ and observability.
 
 import io
 import logging
-from typing import Optional
 
 import httpx
 
@@ -89,9 +88,7 @@ class ForecastClient:
 
         logger.info(f"Initialized ForecastClient: base_url={base_url}, timeout={timeout}s")
 
-    def forecast(
-        self, model: ModelName, request: ForecastRequest
-    ) -> ForecastResponse:
+    def forecast(self, model: ModelName, request: ForecastRequest) -> ForecastResponse:
         """Generate time-series forecast (synchronous).
 
         Args:
@@ -123,9 +120,7 @@ class ForecastClient:
         # Serialize request to Arrow format
         try:
             arrays, metadata = request.to_arrays_and_metadata()
-            payload = serialize_to_arrow(
-                arrays, metadata, compression=request.compression
-            )
+            payload = serialize_to_arrow(arrays, metadata, compression=request.compression)
             logger.debug(f"Serialized request: {len(payload)} bytes")
 
         except Exception as e:
@@ -136,10 +131,7 @@ class ForecastClient:
             ) from e
 
         # Wrap payload in File object for generated client
-        payload_file = File(
-            payload=io.BytesIO(payload),
-            mime_type="application/vnd.apache.arrow.stream"
-        )
+        payload_file = File(payload=io.BytesIO(payload), mime_type="application/vnd.apache.arrow.stream")
 
         # Make API call
         try:
@@ -219,13 +211,9 @@ class ForecastClient:
             logger.debug(f"Received response: {len(response_bytes)} bytes")
 
             arrays, metadata = deserialize_from_arrow(response_bytes)
-            forecast_response = ForecastResponse.from_arrays_and_metadata(
-                arrays, metadata
-            )
+            forecast_response = ForecastResponse.from_arrays_and_metadata(arrays, metadata)
 
-            logger.info(
-                f"Forecast successful: predictions.shape={forecast_response.predictions.shape}"
-            )
+            logger.info(f"Forecast successful: predictions.shape={forecast_response.predictions.shape}")
             return forecast_response
 
         except Exception as e:
@@ -235,9 +223,7 @@ class ForecastClient:
                 details={"model": str(model), "error": str(e)},
             ) from e
 
-    async def forecast_async(
-        self, model: ModelName, request: ForecastRequest
-    ) -> ForecastResponse:
+    async def forecast_async(self, model: ModelName, request: ForecastRequest) -> ForecastResponse:
         """Generate time-series forecast (asynchronous).
 
         Args:
@@ -254,16 +240,12 @@ class ForecastClient:
             >>> request = ToToForecastRequest(x=data, horizon=10)
             >>> response = await client.forecast_async(ModelName.TOTO, request)
         """
-        logger.debug(
-            f"Starting async forecast: model={model}, version={request.model_version}"
-        )
+        logger.debug(f"Starting async forecast: model={model}, version={request.model_version}")
 
         # Serialize request
         try:
             arrays, metadata = request.to_arrays_and_metadata()
-            payload = serialize_to_arrow(
-                arrays, metadata, compression=request.compression
-            )
+            payload = serialize_to_arrow(arrays, metadata, compression=request.compression)
             logger.debug(f"Serialized request: {len(payload)} bytes")
 
         except Exception as e:
@@ -274,10 +256,7 @@ class ForecastClient:
             ) from e
 
         # Wrap payload in File object for generated client
-        payload_file = File(
-            payload=io.BytesIO(payload),
-            mime_type="application/vnd.apache.arrow.stream"
-        )
+        payload_file = File(payload=io.BytesIO(payload), mime_type="application/vnd.apache.arrow.stream")
 
         # Make async API call
         try:
@@ -348,13 +327,9 @@ class ForecastClient:
             logger.debug(f"Received response: {len(response_bytes)} bytes")
 
             arrays, metadata = deserialize_from_arrow(response_bytes)
-            forecast_response = ForecastResponse.from_arrays_and_metadata(
-                arrays, metadata
-            )
+            forecast_response = ForecastResponse.from_arrays_and_metadata(arrays, metadata)
 
-            logger.info(
-                f"Async forecast successful: predictions.shape={forecast_response.predictions.shape}"
-            )
+            logger.info(f"Async forecast successful: predictions.shape={forecast_response.predictions.shape}")
             return forecast_response
 
         except Exception as e:

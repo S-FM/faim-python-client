@@ -4,12 +4,6 @@ dist/
 *.egg-info/
 .pytest_cache/
 
-# OpenAPI spec
-openapi.json
-
-# Claude Code guidance
-CLAUDE.md
-
 # pyenv
 .python-version
 
