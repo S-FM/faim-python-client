@@ -220,7 +220,7 @@ class ForecastClient:
             arrays, metadata = deserialize_from_arrow(response_bytes)
             forecast_response = ForecastResponse.from_arrays_and_metadata(arrays, metadata)
 
-            logger.info(f"Forecast successful: predictions.shape={forecast_response.predictions.shape}")
+            logger.info(f"Forecast successful: {forecast_response}")
             return forecast_response
 
         except Exception as e:
@@ -343,7 +343,7 @@ class ForecastClient:
             arrays, metadata = deserialize_from_arrow(response_bytes)
             forecast_response = ForecastResponse.from_arrays_and_metadata(arrays, metadata)
 
-            logger.info(f"Async forecast successful: predictions.shape={forecast_response.predictions.shape}")
+            logger.info(f"Async forecast successful: {forecast_response}")
             return forecast_response
 
         except Exception as e:

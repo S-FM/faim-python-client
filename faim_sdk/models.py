@@ -163,25 +163,22 @@ class FlowStateForecastRequest(ForecastRequest):
 class ForecastResponse:
     """Type-safe forecast response.
 
-    Contains predictions and metadata from backend inference.
+    Contains outputs and metadata from backend inference.
+    Backend returns one or more of: 'point', 'quantiles', 'samples'.
     """
 
-    predictions: np.ndarray
-    """Forecast predictions. Shape depends on model and parameters.
-    Typical shape: (batch_size, horizon) or (batch_size, horizon, features)"""
-
     metadata: dict[str, Any] = field(default_factory=dict)
-    """Response metadata from backend (e.g., model_version, inference_time_ms)"""
+    """Response metadata from backend (e.g., model_name, model_version)"""
 
-    # Optional model-specific outputs
+    # Backend outputs
+    point: Optional[np.ndarray] = None
+    """Point predictions from FlowState. Shape: (batch_size, horizon, features)"""
+
     quantiles: Optional[np.ndarray] = None
-    """Quantile predictions if requested. Shape: (batch_size, horizon, num_quantiles)"""
+    """Quantile predictions from ToTo. Shape: (batch_size, horizon, num_quantiles)"""
 
     samples: Optional[np.ndarray] = None
-    """Forecast samples if num_samples was specified. Shape: (batch_size, horizon, num_samples)"""
-
-    uncertainty: Optional[np.ndarray] = None
-    """Uncertainty estimates if available. Shape: (batch_size, horizon)"""
+    """Sample predictions from ToTo. Shape: (batch_size, horizon, num_samples)"""
 
     @classmethod
     def from_arrays_and_metadata(cls, arrays: dict[str, np.ndarray], metadata: dict[str, Any]) -> "ForecastResponse":
@@ -195,48 +192,37 @@ class ForecastResponse:
             ForecastResponse instance
 
         Raises:
-            ValueError: If predictions array is missing
+            ValueError: If no output arrays found
         """
-        # Primary output - backend returns: point, quantiles, or samples
-        # Use point as primary prediction (most common for FlowState)
-        predictions = arrays.get("point")
-
-        # If no point predictions, check if we have quantiles or samples as alternatives
-        if predictions is None:
-            predictions = arrays.get("quantiles")
-        if predictions is None:
-            predictions = arrays.get("samples")
-
-        if predictions is None:
-            raise ValueError(f"Response missing predictions array. Available keys: {list(arrays.keys())}")
-
-        # Optional outputs (model-specific)
+        # Extract backend outputs
+        point = arrays.get("point")
         quantiles = arrays.get("quantiles")
         samples = arrays.get("samples")
-        uncertainty = arrays.get("uncertainty")
+
+        # Validate that at least one output is present
+        if point is None and quantiles is None and samples is None:
+            raise ValueError(f"Response missing output arrays. Available keys: {list(arrays.keys())}")
 
         return cls(
-            predictions=predictions,
             metadata=metadata,
+            point=point,
             quantiles=quantiles,
             samples=samples,
-            uncertainty=uncertainty,
         )
 
     def __repr__(self) -> str:
-        optional_outputs = []
+        outputs = []
+        if self.point is not None:
+            outputs.append(f"point.shape={self.point.shape}")
         if self.quantiles is not None:
-            optional_outputs.append(f"quantiles.shape={self.quantiles.shape}")
+            outputs.append(f"quantiles.shape={self.quantiles.shape}")
         if self.samples is not None:
-            optional_outputs.append(f"samples.shape={self.samples.shape}")
-        if self.uncertainty is not None:
-            optional_outputs.append(f"uncertainty.shape={self.uncertainty.shape}")
+            outputs.append(f"samples.shape={self.samples.shape}")
 
-        optional_str = ", ".join(optional_outputs) if optional_outputs else "None"
+        outputs_str = ", ".join(outputs) if outputs else "None"
 
         return (
             f"ForecastResponse("
-            f"predictions.shape={self.predictions.shape}, "
-            f"optional_outputs=[{optional_str}], "
-            f"metadata_keys={list(self.metadata.keys())})"
+            f"outputs=[{outputs_str}], "
+            f"metadata={self.metadata})"
         )
