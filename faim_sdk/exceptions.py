@@ -1,4 +1,4 @@
-"""Production-grade exceptions for FAIM SDK.
+"""Exceptions for FAIM SDK.
 
 Provides a hierarchy of exceptions for precise error handling and debugging.
 """

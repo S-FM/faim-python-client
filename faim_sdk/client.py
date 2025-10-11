@@ -1,4 +1,4 @@
-"""Production-ready FAIM SDK client for time-series forecasting.
+""" FAIM SDK client for time-series forecasting.
 
 Provides high-level, type-safe API with automatic serialization, error handling,
 and observability.
@@ -121,7 +121,7 @@ class ForecastClient:
         try:
             arrays, metadata = request.to_arrays_and_metadata()
             payload = serialize_to_arrow(arrays, metadata, compression=request.compression)
-            logger.debug(f"Serialized request: {len(payload)} bytes")
+            logger.debug(f"Serialized request: {len(payload)} bytes, metadata={metadata}")
 
         except Exception as e:
             logger.exception("Request serialization failed")
@@ -135,13 +135,20 @@ class ForecastClient:
 
         # Make API call
         try:
-            with self._client as client:
-                response = forecast_v1_forecast_model_name_model_version_post.sync_detailed(
-                    model_name=model,
-                    model_version=request.model_version,
-                    client=client,
-                    body=payload_file,
-                )
+            response = forecast_v1_forecast_model_name_model_version_post.sync_detailed(
+                model_name=model,
+                model_version=request.model_version,
+                client=self._client,
+                body=payload_file,
+            )
+
+        except KeyError as e:
+            # Backend returned error response with unexpected format
+            logger.error(f"Failed to parse error response: {e}")
+            raise APIError(
+                f"Server returned error with unexpected format (missing '{e}' field)",
+                details={"model": str(model), "error_type": "ResponseParseError"},
+            ) from e
 
         except httpx.TimeoutException as e:
             logger.error(f"Request timeout after {self._client._timeout}s")
@@ -260,13 +267,20 @@ class ForecastClient:
 
         # Make async API call
         try:
-            async with self._client as client:
-                response = await forecast_v1_forecast_model_name_model_version_post.asyncio_detailed(
-                    model_name=model,
-                    model_version=request.model_version,
-                    client=client,
-                    body=payload_file,
-                )
+            response = await forecast_v1_forecast_model_name_model_version_post.asyncio_detailed(
+                model_name=model,
+                model_version=request.model_version,
+                client=self._client,
+                body=payload_file,
+            )
+
+        except KeyError as e:
+            # Backend returned error response with unexpected format
+            logger.error(f"Failed to parse error response: {e}")
+            raise APIError(
+                f"Server returned error with unexpected format (missing '{e}' field)",
+                details={"model": str(model), "error_type": "ResponseParseError"},
+            ) from e
 
         except httpx.TimeoutException as e:
             logger.error(f"Request timeout after {self._client._timeout}s")

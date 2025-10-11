@@ -21,3 +21,6 @@ dmypy.json
 
 /coverage.xml
 /.coverage
+
+openapi.json
+pyproject.toml
