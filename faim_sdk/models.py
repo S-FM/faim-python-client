@@ -5,7 +5,7 @@ model-specific parameter classes.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 
@@ -136,9 +136,8 @@ class FlowStateForecastRequest(ForecastRequest):
     """Scaling factor for normalization/denormalization.
     Applied to inputs before inference and outputs after inference."""
 
-    prediction_type: Optional[str] = None
-    """Prediction type. Common values: 'point', 'mean', 'median'.
-    Depends on model configuration."""
+    prediction_type: Optional[Literal["point", "mean", "median"]] = None
+    """Prediction type for FlowState model. Options: 'point', 'mean', 'median'."""
 
     def __post_init__(self) -> None:
         """Validate FlowState-specific parameters."""
