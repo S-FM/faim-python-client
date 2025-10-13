@@ -9,6 +9,9 @@ from typing import Any, Literal, Optional
 
 import numpy as np
 
+# Type alias for output types
+OutputType = Literal["point", "quantiles", "samples"]
+
 
 @dataclass
 class ForecastRequest:
@@ -68,6 +71,9 @@ class ToToForecastRequest(ForecastRequest):
     probabilistic predictions via sampling or quantiles.
     """
 
+    output_type: OutputType = "point"
+    """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
+
     padding_mask: Optional[np.ndarray] = None
     """Padding mask for variable-length sequences. Shape: same as x.
     1 for valid timesteps, 0 for padding."""
@@ -116,6 +122,7 @@ class ToToForecastRequest(ForecastRequest):
             arrays["id_mask"] = self.id_mask
 
         # Add ToTo-specific metadata (small parameters)
+        metadata["output_type"] = self.output_type
         if self.num_samples is not None:
             metadata["num_samples"] = self.num_samples
         if self.quantiles is not None:
@@ -131,6 +138,9 @@ class FlowStateForecastRequest(ForecastRequest):
     FlowState is optimized for point forecasts with optional scaling
     and different prediction modes.
     """
+
+    output_type: OutputType = "point"
+    """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
     scale_factor: Optional[float] = None
     """Scaling factor for normalization/denormalization.
@@ -151,6 +161,7 @@ class FlowStateForecastRequest(ForecastRequest):
         arrays, metadata = super().to_arrays_and_metadata()
 
         # Add FlowState-specific metadata
+        metadata["output_type"] = self.output_type
         if self.scale_factor is not None:
             metadata["scale_factor"] = self.scale_factor
         if self.prediction_type is not None:

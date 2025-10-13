@@ -21,6 +21,7 @@ from .models import (
     FlowStateForecastRequest,
     ForecastRequest,
     ForecastResponse,
+    OutputType,
     ToToForecastRequest,
 )
 
@@ -33,6 +34,8 @@ __all__ = [
     "FlowStateForecastRequest",
     # Response model
     "ForecastResponse",
+    # Type aliases
+    "OutputType",
     # Exceptions
     "FAIMError",
     "APIError",
