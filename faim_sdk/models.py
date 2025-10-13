@@ -146,8 +146,8 @@ class FlowStateForecastRequest(ForecastRequest):
     """Scaling factor for normalization/denormalization.
     Applied to inputs before inference and outputs after inference."""
 
-    prediction_type: Optional[Literal["point", "mean", "median"]] = None
-    """Prediction type for FlowState model. Options: 'point', 'mean', 'median'."""
+    prediction_type: Optional[Literal["mean", "median", "quantile"]] = None
+    """Prediction type for FlowState model. Options: 'mean', 'median', 'quantile'."""
 
     def __post_init__(self) -> None:
         """Validate FlowState-specific parameters."""
@@ -155,6 +155,19 @@ class FlowStateForecastRequest(ForecastRequest):
 
         if self.scale_factor is not None and self.scale_factor <= 0:
             raise ValueError(f"scale_factor must be positive, got {self.scale_factor}")
+
+        # Validate prediction_type and output_type correspondence
+        if self.prediction_type is not None:
+            if self.prediction_type == "quantile":
+                if self.output_type != "quantiles":
+                    raise ValueError(
+                        f"prediction_type='quantile' requires output_type='quantiles', got '{self.output_type}'"
+                    )
+            elif self.prediction_type in ("mean", "median"):
+                if self.output_type != "point":
+                    raise ValueError(
+                        f"prediction_type='{self.prediction_type}' requires output_type='point', got '{self.output_type}'"
+                    )
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         """Convert FlowState request to Arrow format."""
