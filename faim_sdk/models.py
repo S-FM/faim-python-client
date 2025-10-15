@@ -147,7 +147,9 @@ class FlowStateForecastRequest(ForecastRequest):
     Applied to inputs before inference and outputs after inference."""
 
     prediction_type: Optional[Literal["mean", "median", "quantile"]] = None
-    """Prediction type for FlowState model. Options: 'mean', 'median', 'quantile'."""
+    """Prediction type for FlowState model.
+    Options: 'mean', 'median' (requires output_type='point'),
+             'quantile' (requires output_type='quantiles')."""
 
     def __post_init__(self) -> None:
         """Validate FlowState-specific parameters."""
@@ -168,6 +170,17 @@ class FlowStateForecastRequest(ForecastRequest):
                     raise ValueError(
                         f"prediction_type='{self.prediction_type}' requires output_type='point', got '{self.output_type}'"
                     )
+
+        # Validate output_type requires corresponding prediction_type
+        if self.output_type == "quantiles" and self.prediction_type != "quantile":
+            raise ValueError(
+                f"output_type='quantiles' requires prediction_type='quantile', "
+                f"got prediction_type='{self.prediction_type}'"
+            )
+        if self.output_type == "point" and self.prediction_type == "quantile":
+            raise ValueError(
+                f"output_type='point' conflicts with prediction_type='quantile'"
+            )
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         """Convert FlowState request to Arrow format."""
