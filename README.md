@@ -1,124 +1,183 @@
-# faim-client
-A client library for accessing Triton Proxy Server
+# FAIM SDK
 
-## Usage
-First, create a client:
+Python SDK for FAIM time-series forecasting with foundation AI models.
 
-```python
-from faim_client import Client
+## Installation
 
-client = Client(base_url="https://api.example.com")
+```bash
+pip install faim-sdk
 ```
 
-If the endpoints you're going to hit require authentication, use `AuthenticatedClient` instead:
+## Quick Start
 
 ```python
-from faim_client import AuthenticatedClient
+import numpy as np
+from faim_sdk import ForecastClient, FlowStateForecastRequest
+from faim_client.models import ModelName
 
-client = AuthenticatedClient(base_url="https://api.example.com", token="SuperSecretToken")
+# Initialize client
+client = ForecastClient(
+    base_url="http://localhost:8003",
+    timeout=60.0
+)
+
+# Prepare your time-series data
+# Shape: (batch_size, sequence_length, features)
+data = np.random.randn(1, 100, 1).astype(np.float32)
+
+# Create forecast request
+request = FlowStateForecastRequest(
+    x=data,
+    horizon=10,
+    model_version="1"
+)
+
+# Generate forecast
+response = client.forecast(ModelName.FLOWSTATE, request)
+
+# Access predictions
+print(response.point)  # Shape: (batch_size, horizon, features)
+print(response.metadata)  # Model metadata
 ```
 
-Now call your endpoint and use your models:
+## Models
+
+### FlowState
+
+Point forecasting model optimized for deterministic predictions.
 
 ```python
-from faim_client.models import MyDataModel
-from faim_client.api.my_tag import get_my_data_model
-from faim_client.types import Response
+from faim_sdk import FlowStateForecastRequest
 
-with client as client:
-    my_data: MyDataModel = get_my_data_model.sync(client=client)
-    # or if you need more info (e.g. status_code)
-    response: Response[MyDataModel] = get_my_data_model.sync_detailed(client=client)
-```
-
-Or do the same thing with an async version:
-
-```python
-from faim_client.models import MyDataModel
-from faim_client.api.my_tag import get_my_data_model
-from faim_client.types import Response
-
-async with client as client:
-    my_data: MyDataModel = await get_my_data_model.asyncio(client=client)
-    response: Response[MyDataModel] = await get_my_data_model.asyncio_detailed(client=client)
-```
-
-By default, when you're calling an HTTPS API it will attempt to verify that SSL is working correctly. Using certificate verification is highly recommended most of the time, but sometimes you may need to authenticate to a server (especially an internal server) using a custom certificate bundle.
-
-```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken",
-    verify_ssl="/path/to/certificate_bundle.pem",
+request = FlowStateForecastRequest(
+    x=data,
+    horizon=10,
+    model_version="1",
+    output_type="point",  # Options: "point", "quantiles", "samples"
+    scale_factor=1.0,  # Optional normalization
+    prediction_type="mean"  # Options: "mean", "median", "quantile"
 )
 ```
 
-You can also disable certificate validation altogether, but beware that **this is a security risk**.
+### ToTo
+
+Probabilistic forecasting model with quantile and sample-based predictions.
 
 ```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken", 
-    verify_ssl=False
+from faim_sdk import ToToForecastRequest
+
+# Quantile predictions
+request = ToToForecastRequest(
+    x=data,
+    horizon=10,
+    model_version="1",
+    output_type="quantiles",
+    quantiles=[0.1, 0.5, 0.9]  # 10th, 50th, 90th percentiles
+)
+
+# Sample-based predictions
+request = ToToForecastRequest(
+    x=data,
+    horizon=10,
+    model_version="1",
+    output_type="samples",
+    num_samples=100
 )
 ```
 
-Things to know:
-1. Every path/method combo becomes a Python module with four functions:
-    1. `sync`: Blocking request that returns parsed data (if successful) or `None`
-    1. `sync_detailed`: Blocking request that always returns a `Request`, optionally with `parsed` set if the request was successful.
-    1. `asyncio`: Like `sync` but async instead of blocking
-    1. `asyncio_detailed`: Like `sync_detailed` but async instead of blocking
+## Response Format
 
-1. All path/query params, and bodies become method arguments.
-1. If your endpoint had any tags on it, the first tag will be used as a module name for the function (my_tag above)
-1. Any endpoint which did not have a tag will be in `faim_client.api.default`
-
-## Advanced customizations
-
-There are more settings on the generated `Client` class which let you control more runtime behavior, check out the docstring on that class for more info. You can also customize the underlying `httpx.Client` or `httpx.AsyncClient` (depending on your use-case):
+All forecasts return a `ForecastResponse` object:
 
 ```python
-from faim_client import Client
+response = client.forecast(ModelName.TOTO, request)
 
-def log_request(request):
-    print(f"Request event hook: {request.method} {request.url} - Waiting for response")
+# Access predictions based on output_type
+if response.point is not None:
+    predictions = response.point  # Shape: (batch_size, horizon, features)
 
-def log_response(response):
-    request = response.request
-    print(f"Response event hook: {request.method} {request.url} - Status {response.status_code}")
+if response.quantiles is not None:
+    quantiles = response.quantiles  # Shape: (batch_size, horizon, num_quantiles)
 
-client = Client(
+if response.samples is not None:
+    samples = response.samples  # Shape: (batch_size, horizon, num_samples)
+
+# Access metadata
+print(response.metadata)  # {'model_name': 'toto', 'model_version': '1'}
+```
+
+## Async Usage
+
+```python
+async with ForecastClient(base_url="http://localhost:8003") as client:
+    response = await client.forecast_async(ModelName.FLOWSTATE, request)
+    print(response.point)
+```
+
+## Examples
+
+See the `examples/` directory for complete notebook examples:
+- `flowstate_simple_example.ipynb` - Point forecasting with FlowState
+- `toto_simple_example.ipynb` - Probabilistic forecasting with ToTo
+
+## Error Handling
+
+The SDK provides specific exception types for different error scenarios:
+
+```python
+from faim_sdk import (
+    ModelNotFoundError,
+    ValidationError,
+    TimeoutError,
+    NetworkError,
+    SerializationError
+)
+
+try:
+    response = client.forecast(ModelName.FLOWSTATE, request)
+except ModelNotFoundError:
+    print("Model or version not found")
+except ValidationError:
+    print("Invalid request parameters")
+except TimeoutError:
+    print("Request timed out")
+except NetworkError:
+    print("Network communication failed")
+except SerializationError:
+    print("Failed to serialize/deserialize data")
+```
+
+## Configuration
+
+### Client Options
+
+```python
+client = ForecastClient(
     base_url="https://api.example.com",
-    httpx_args={"event_hooks": {"request": [log_request], "response": [log_response]}},
+    timeout=120.0,  # Request timeout in seconds
+    verify_ssl=True,  # SSL certificate verification
+    **httpx_kwargs  # Additional httpx.Client arguments
 )
-
-# Or get the underlying httpx client to modify directly with client.get_httpx_client() or client.get_async_httpx_client()
 ```
 
-You can even set the httpx client directly, but beware that this will override any existing settings (e.g., base_url):
+### Request Options
 
 ```python
-import httpx
-from faim_client import Client
-
-client = Client(
-    base_url="https://api.example.com",
+request = FlowStateForecastRequest(
+    x=data,
+    horizon=10,
+    model_version="1",
+    compression="zstd",  # Options: "zstd", "lz4", None
 )
-# Note that base_url needs to be re-set, as would any shared cookies, headers, etc.
-client.set_httpx_client(httpx.Client(base_url="https://api.example.com", proxies="http://localhost:8030"))
 ```
 
-## Building / publishing this package
-This project uses [Poetry](https://python-poetry.org/) to manage dependencies  and packaging.  Here are the basics:
-1. Update the metadata in pyproject.toml (e.g. authors, version)
-1. If you're using a private repository, configure it with Poetry
-    1. `poetry config repositories.<your-repository-name> <url-to-your-repository>`
-    1. `poetry config http-basic.<your-repository-name> <username> <password>`
-1. Publish the client with `poetry publish --build -r <your-repository-name>` or, if for public PyPI, just `poetry publish --build`
+## Requirements
 
-If you want to install this client into another project without publishing it (e.g. for development) then:
-1. If that project **is using Poetry**, you can simply do `poetry add <path-to-this-client>` from that project
-1. If that project is not using Poetry:
-    1. Build a wheel with `poetry build -f wheel`
-    1. Install that wheel from the other project `pip install <path-to-wheel>`
+- Python >= 3.10
+- numpy >= 1.20.0
+- pyarrow >= 10.0.0
+- httpx >= 0.23.0
+
+## License
+
+Apache 2.0
