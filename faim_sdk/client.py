@@ -6,10 +6,11 @@ and observability.
 
 import io
 import logging
+from typing import Optional
 
 import httpx
 
-from faim_client import Client
+from faim_client import AuthenticatedClient, Client
 from faim_client.api.forecast import forecast_v1_forecast_model_name_model_version_post
 from faim_client.models import ModelName
 from faim_client.types import File
@@ -58,6 +59,7 @@ class ForecastClient:
         base_url: str,
         timeout: float = 120.0,
         verify_ssl: bool = True,
+        api_key: Optional[str] = None,
         **httpx_kwargs,
     ) -> None:
         """Initialize FAIM forecast client.
@@ -66,27 +68,42 @@ class ForecastClient:
             base_url: Base URL of FAIM inference API
             timeout: Request timeout in seconds. Default: 120s
             verify_ssl: Whether to verify SSL certificates. Default: True
+            api_key: Optional API key for authentication. If provided, all requests
+                     will include "Authorization: Bearer <api_key>" header. Default: None
             **httpx_kwargs: Additional arguments passed to httpx.Client
                            (e.g., headers, limits, proxies)
 
         Example:
+            >>> # Without authentication
+            >>> client = ForecastClient(base_url="https://api.example.com")
+
+            >>> # With API key authentication
             >>> client = ForecastClient(
             ...     base_url="https://api.example.com",
-            ...     timeout=300.0,
-            ...     httpx_args={"limits": httpx.Limits(max_connections=10)}
+            ...     api_key="your-secret-api-key"
             ... )
         """
         self.base_url = base_url
         timeout_obj = httpx.Timeout(timeout)
 
-        self._client = Client(
-            base_url=base_url,
-            timeout=timeout_obj,
-            verify_ssl=verify_ssl,
-            **httpx_kwargs,
-        )
-
-        logger.info(f"Initialized ForecastClient: base_url={base_url}, timeout={timeout}s")
+        if api_key:
+            self._client = AuthenticatedClient(
+                base_url=base_url,
+                timeout=timeout_obj,
+                verify_ssl=verify_ssl,
+                token=api_key,
+                prefix="Bearer",
+                **httpx_kwargs,
+            )
+            logger.info(f"Initialized ForecastClient with authentication: base_url={base_url}, timeout={timeout}s")
+        else:
+            self._client = Client(
+                base_url=base_url,
+                timeout=timeout_obj,
+                verify_ssl=verify_ssl,
+                **httpx_kwargs,
+            )
+            logger.info(f"Initialized ForecastClient: base_url={base_url}, timeout={timeout}s")
 
     def forecast(self, model: ModelName, request: ForecastRequest) -> ForecastResponse:
         """Generate time-series forecast (synchronous).

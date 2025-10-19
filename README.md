@@ -152,11 +152,20 @@ except SerializationError:
 ### Client Options
 
 ```python
+# Without authentication
 client = ForecastClient(
     base_url="https://api.example.com",
     timeout=120.0,  # Request timeout in seconds
     verify_ssl=True,  # SSL certificate verification
     **httpx_kwargs  # Additional httpx.Client arguments
+)
+
+# With API key authentication
+client = ForecastClient(
+    base_url="https://api.example.com",
+    api_key="your-secret-api-key",  # API key for authentication
+    timeout=120.0,
+    verify_ssl=True
 )
 ```
 
