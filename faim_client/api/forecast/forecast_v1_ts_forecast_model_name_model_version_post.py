@@ -6,7 +6,6 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.error_response import ErrorResponse
 from ...models.model_name import ModelName
 from ...types import File, Response
 
@@ -21,7 +20,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": f"/v1/forecast/{model_name}/{model_version}",
+        "url": f"/v1/ts/forecast/{model_name}/{model_version}",
     }
 
     _kwargs["content"] = body.payload
@@ -34,15 +33,18 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Any, ErrorResponse, File]]:
+) -> Optional[Union[Any, File]]:
     if response.status_code == 200:
         response_200 = File(payload=BytesIO(response.content))
 
         return response_200
 
-    if response.status_code == 404:
-        response_404 = ErrorResponse.from_dict(response.json())
+    if response.status_code == 401:
+        response_401 = cast(Any, None)
+        return response_401
 
+    if response.status_code == 404:
+        response_404 = cast(Any, None)
         return response_404
 
     if response.status_code == 413:
@@ -50,13 +52,11 @@ def _parse_response(
         return response_413
 
     if response.status_code == 422:
-        response_422 = ErrorResponse.from_dict(response.json())
-
+        response_422 = cast(Any, None)
         return response_422
 
     if response.status_code == 500:
-        response_500 = ErrorResponse.from_dict(response.json())
-
+        response_500 = cast(Any, None)
         return response_500
 
     if client.raise_on_unexpected_status:
@@ -67,7 +67,7 @@ def _parse_response(
 
 def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Any, ErrorResponse, File]]:
+) -> Response[Union[Any, File]]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -82,10 +82,12 @@ def sync_detailed(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Response[Union[Any, ErrorResponse, File]]:
-    """Generate model forecast
+) -> Response[Union[Any, File]]:
+    r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
+
+        **Authentication**: Requires valid API key in Authorization header as `Bearer <api_key>`
 
         **Request Format**: Apache Arrow IPC Stream (`application/vnd.apache.arrow.stream`)
         - Large arrays (x, padding_mask, etc.) sent as Arrow columns
@@ -94,6 +96,7 @@ def sync_detailed(
         **Required Inputs**:
         - `x`: Time series data (numpy array)
         - `horizon`: Forecast horizon length (integer, in metadata)
+        - `output_type`: Output type - \"point\", \"quantiles\", or \"samples\" (string, in metadata)
 
         **Model-Specific Inputs**:
 
@@ -119,7 +122,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Any, ErrorResponse, File]]
+        Response[Union[Any, File]]
     """
 
     kwargs = _get_kwargs(
@@ -141,10 +144,12 @@ def sync(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Optional[Union[Any, ErrorResponse, File]]:
-    """Generate model forecast
+) -> Optional[Union[Any, File]]:
+    r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
+
+        **Authentication**: Requires valid API key in Authorization header as `Bearer <api_key>`
 
         **Request Format**: Apache Arrow IPC Stream (`application/vnd.apache.arrow.stream`)
         - Large arrays (x, padding_mask, etc.) sent as Arrow columns
@@ -153,6 +158,7 @@ def sync(
         **Required Inputs**:
         - `x`: Time series data (numpy array)
         - `horizon`: Forecast horizon length (integer, in metadata)
+        - `output_type`: Output type - \"point\", \"quantiles\", or \"samples\" (string, in metadata)
 
         **Model-Specific Inputs**:
 
@@ -178,7 +184,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Any, ErrorResponse, File]
+        Union[Any, File]
     """
 
     return sync_detailed(
@@ -195,10 +201,12 @@ async def asyncio_detailed(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Response[Union[Any, ErrorResponse, File]]:
-    """Generate model forecast
+) -> Response[Union[Any, File]]:
+    r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
+
+        **Authentication**: Requires valid API key in Authorization header as `Bearer <api_key>`
 
         **Request Format**: Apache Arrow IPC Stream (`application/vnd.apache.arrow.stream`)
         - Large arrays (x, padding_mask, etc.) sent as Arrow columns
@@ -207,6 +215,7 @@ async def asyncio_detailed(
         **Required Inputs**:
         - `x`: Time series data (numpy array)
         - `horizon`: Forecast horizon length (integer, in metadata)
+        - `output_type`: Output type - \"point\", \"quantiles\", or \"samples\" (string, in metadata)
 
         **Model-Specific Inputs**:
 
@@ -232,7 +241,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Any, ErrorResponse, File]]
+        Response[Union[Any, File]]
     """
 
     kwargs = _get_kwargs(
@@ -252,10 +261,12 @@ async def asyncio(
     *,
     client: Union[AuthenticatedClient, Client],
     body: File,
-) -> Optional[Union[Any, ErrorResponse, File]]:
-    """Generate model forecast
+) -> Optional[Union[Any, File]]:
+    r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
+
+        **Authentication**: Requires valid API key in Authorization header as `Bearer <api_key>`
 
         **Request Format**: Apache Arrow IPC Stream (`application/vnd.apache.arrow.stream`)
         - Large arrays (x, padding_mask, etc.) sent as Arrow columns
@@ -264,6 +275,7 @@ async def asyncio(
         **Required Inputs**:
         - `x`: Time series data (numpy array)
         - `horizon`: Forecast horizon length (integer, in metadata)
+        - `output_type`: Output type - \"point\", \"quantiles\", or \"samples\" (string, in metadata)
 
         **Model-Specific Inputs**:
 
@@ -289,7 +301,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Any, ErrorResponse, File]
+        Union[Any, File]
     """
 
     return (

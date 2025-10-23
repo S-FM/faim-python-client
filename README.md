@@ -187,6 +187,28 @@ request = FlowStateForecastRequest(
 - pyarrow >= 10.0.0
 - httpx >= 0.23.0
 
+## Development
+
+### Regenerating the Low-Level Client
+
+The `faim_client` package is auto-generated from the OpenAPI specification. To regenerate after API changes:
+
+```bash
+# Get the latest OpenAPI spec from your server
+curl http://your-server:8003/openapi.json > openapi.json
+
+# Regenerate the client
+openapi-python-client generate --path openapi.json --config client.config.yaml --meta none
+```
+
+The `--meta none` flag prevents creating an extra outer directory.
+
+After regenerating, test that `faim_sdk` still works correctly:
+```bash
+poetry install
+pytest tests/
+```
+
 ## License
 
 Apache 2.0

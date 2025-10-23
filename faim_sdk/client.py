@@ -11,7 +11,7 @@ from typing import Optional
 import httpx
 
 from faim_client import AuthenticatedClient, Client
-from faim_client.api.forecast import forecast_v1_forecast_model_name_model_version_post
+from faim_client.api.forecast import forecast_v1_ts_forecast_model_name_model_version_post
 from faim_client.models import ModelName
 from faim_client.types import File
 
@@ -152,7 +152,7 @@ class ForecastClient:
 
         # Make API call
         try:
-            response = forecast_v1_forecast_model_name_model_version_post.sync_detailed(
+            response = forecast_v1_ts_forecast_model_name_model_version_post.sync_detailed(
                 model_name=model,
                 model_version=request.model_version,
                 client=self._client,
@@ -284,7 +284,7 @@ class ForecastClient:
 
         # Make async API call
         try:
-            response = await forecast_v1_forecast_model_name_model_version_post.asyncio_detailed(
+            response = await forecast_v1_ts_forecast_model_name_model_version_post.asyncio_detailed(
                 model_name=model,
                 model_version=request.model_version,
                 client=self._client,
