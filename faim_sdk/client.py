@@ -6,7 +6,6 @@ and observability.
 
 import io
 import logging
-from typing import Optional
 
 import httpx
 
@@ -59,7 +58,7 @@ class ForecastClient:
         base_url: str,
         timeout: float = 120.0,
         verify_ssl: bool = True,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         **httpx_kwargs,
     ) -> None:
         """Initialize FAIM forecast client.

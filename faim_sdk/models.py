@@ -5,7 +5,7 @@ model-specific parameter classes.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import numpy as np
 
@@ -31,7 +31,7 @@ class ForecastRequest:
     model_version: str = "1"
     """Model version to use for inference. Default: '1'"""
 
-    compression: Optional[str] = "zstd"
+    compression: str | None = "zstd"
     """Arrow compression algorithm. Options: 'zstd', 'lz4', None. Default: 'zstd'"""
 
     def __post_init__(self) -> None:
@@ -74,19 +74,19 @@ class ToToForecastRequest(ForecastRequest):
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
-    padding_mask: Optional[np.ndarray] = None
+    padding_mask: np.ndarray | None = None
     """Padding mask for variable-length sequences. Shape: same as x.
     1 for valid timesteps, 0 for padding."""
 
-    id_mask: Optional[np.ndarray] = None
+    id_mask: np.ndarray | None = None
     """Identifier mask for multi-series forecasting. Shape: (batch_size,).
     Each unique ID represents a different time series."""
 
-    num_samples: Optional[int] = None
+    num_samples: int | None = None
     """Number of forecast samples for probabilistic predictions.
     If set, returns sample-based distribution."""
 
-    quantiles: Optional[list[float]] = None
+    quantiles: list[float] | None = None
     """Quantile levels for probabilistic forecasting.
     Example: [0.1, 0.5, 0.9] for 10th, 50th (median), 90th percentiles."""
 
@@ -142,11 +142,11 @@ class FlowStateForecastRequest(ForecastRequest):
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
-    scale_factor: Optional[float] = None
+    scale_factor: float | None = None
     """Scaling factor for normalization/denormalization.
     Applied to inputs before inference and outputs after inference."""
 
-    prediction_type: Optional[Literal["mean", "median", "quantile"]] = None
+    prediction_type: Literal["mean", "median", "quantile"] | None = None
     """Prediction type for FlowState model.
     Options: 'mean', 'median' (requires output_type='point'),
              'quantile' (requires output_type='quantiles')."""
@@ -179,7 +179,7 @@ class FlowStateForecastRequest(ForecastRequest):
             )
         if self.output_type == "point" and self.prediction_type == "quantile":
             raise ValueError(
-                f"output_type='point' conflicts with prediction_type='quantile'"
+                "output_type='point' conflicts with prediction_type='quantile'"
             )
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
@@ -208,13 +208,13 @@ class ForecastResponse:
     """Response metadata from backend (e.g., model_name, model_version)"""
 
     # Backend outputs
-    point: Optional[np.ndarray] = None
+    point: np.ndarray | None = None
     """Point predictions from FlowState. Shape: (batch_size, horizon, features)"""
 
-    quantiles: Optional[np.ndarray] = None
+    quantiles: np.ndarray | None = None
     """Quantile predictions from ToTo. Shape: (batch_size, horizon, num_quantiles)"""
 
-    samples: Optional[np.ndarray] = None
+    samples: np.ndarray | None = None
     """Sample predictions from ToTo. Shape: (batch_size, horizon, num_samples)"""
 
     @classmethod

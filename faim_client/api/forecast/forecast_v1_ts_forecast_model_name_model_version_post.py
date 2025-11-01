@@ -1,6 +1,6 @@
 from http import HTTPStatus
 from io import BytesIO
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
 
 import httpx
 
@@ -32,8 +32,8 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Any, File]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | File | None:
     if response.status_code == 200:
         response_200 = File(payload=BytesIO(response.content))
 
@@ -66,8 +66,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Any, File]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Any | File]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -80,9 +80,9 @@ def sync_detailed(
     model_name: ModelName,
     model_version: str,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: File,
-) -> Response[Union[Any, File]]:
+) -> Response[Any | File]:
     r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -142,9 +142,9 @@ def sync(
     model_name: ModelName,
     model_version: str,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: File,
-) -> Optional[Union[Any, File]]:
+) -> Any | File | None:
     r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -199,9 +199,9 @@ async def asyncio_detailed(
     model_name: ModelName,
     model_version: str,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: File,
-) -> Response[Union[Any, File]]:
+) -> Response[Any | File]:
     r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.
@@ -259,9 +259,9 @@ async def asyncio(
     model_name: ModelName,
     model_version: str,
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: File,
-) -> Optional[Union[Any, File]]:
+) -> Any | File | None:
     r"""Generate model forecast
 
      Generate time series forecasts using the specified Triton model.

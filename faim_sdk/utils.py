@@ -1,7 +1,7 @@
 """Utility functions for Arrow serialization and data conversion."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pyarrow as pa
@@ -9,8 +9,8 @@ import pyarrow as pa
 
 def serialize_to_arrow(
     arrays: dict[str, np.ndarray],
-    metadata: Optional[dict[str, Any]] = None,
-    compression: Optional[str] = "zstd",
+    metadata: dict[str, Any] | None = None,
+    compression: str | None = "zstd",
 ) -> bytes:
     """Serialize numpy arrays to Arrow IPC stream format.
 

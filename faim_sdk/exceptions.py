@@ -3,7 +3,7 @@
 Provides a hierarchy of exceptions for precise error handling and debugging.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from faim_client.models.error_response import ErrorResponse
 
@@ -15,7 +15,7 @@ class FAIMError(Exception):
     error handling when needed.
     """
 
-    def __init__(self, message: str, details: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, message: str, details: dict[str, Any] | None = None) -> None:
         """Initialize FAIM error.
 
         Args:
@@ -53,9 +53,9 @@ class APIError(FAIMError):
     def __init__(
         self,
         message: str,
-        status_code: Optional[int] = None,
-        response: Optional[ErrorResponse] = None,
-        details: Optional[dict[str, Any]] = None,
+        status_code: int | None = None,
+        response: ErrorResponse | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Initialize API error.
 
