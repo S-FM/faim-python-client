@@ -1,7 +1,7 @@
 # FAIM SDK
 
 [![PyPI version](https://badge.fury.io/py/faim-sdk.svg)](https://badge.fury.io/py/faim-sdk)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Production-ready Python SDK for FAIM (Foundation AI Models) - a high-performance time-series forecasting platform powered by foundation models.
@@ -315,9 +315,9 @@ See the `examples/` directory for complete Jupyter notebook examples:
 
 ## Requirements
 
-- Python >= 3.10
-- numpy >= 1.20.0
-- pyarrow >= 10.0.0
+- Python >= 3.11
+- numpy >= 1.26.0
+- pyarrow >= 11.0.0
 - httpx >= 0.23.0
 - pydantic >= 2.0.0
 

@@ -50,6 +50,15 @@ Request Models:
 ForecastResponse:
     Contains prediction outputs (point, quantiles, samples) and metadata.
 
+Evaluation Tools:
+    The faim_sdk.eval subpackage provides metrics and visualization:
+    - Metrics: mse, mase, crps_from_quantiles
+    - Visualization: plot_forecast (requires: pip install faim-sdk[viz])
+
+    >>> from faim_sdk.eval import mse, plot_forecast
+    >>> mse_score = mse(test_data, response.point)
+    >>> fig, ax = plot_forecast(train_data[0], response.point[0], test_data[0])
+
 Exceptions:
     - AuthenticationError: API key issues (401, 403)
     - ValidationError: Invalid request parameters (422)
@@ -133,4 +142,4 @@ __all__ = [
     "ConfigurationError",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
