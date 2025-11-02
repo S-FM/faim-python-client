@@ -29,6 +29,11 @@ class FAIMError(Exception):
         self.details = details or {}
 
     def __str__(self) -> str:
+        """Return string representation of the error.
+
+        Returns:
+            Error message with details if available
+        """
         if self.details:
             return f"{self.message} (details: {self.details})"
         return self.message
@@ -90,6 +95,11 @@ class APIError(FAIMError):
         return self.error_response.error_code if self.error_response else None
 
     def __str__(self) -> str:
+        """Return detailed string representation of the API error.
+
+        Returns:
+            Formatted string with message, status code, error code, request ID, and details
+        """
         parts = [self.message]
         if self.status_code:
             parts.append(f"status={self.status_code}")

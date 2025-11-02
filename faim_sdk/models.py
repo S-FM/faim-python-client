@@ -35,7 +35,15 @@ class ForecastRequest:
     """Arrow compression algorithm. Options: 'zstd', 'lz4', None. Default: 'zstd'"""
 
     def __post_init__(self) -> None:
-        """Validate common parameters."""
+        """Validate common parameters.
+
+        Automatically called after dataclass initialization to ensure
+        all parameters meet requirements.
+
+        Raises:
+            TypeError: If x is not a numpy ndarray
+            ValueError: If x is empty or horizon is non-positive
+        """
         if not isinstance(self.x, np.ndarray):
             raise TypeError(f"x must be numpy.ndarray, got {type(self.x).__name__}")
 
@@ -80,7 +88,14 @@ class Chronos2ForecastRequest(ForecastRequest):
     Only used when output_type='quantiles'."""
 
     def __post_init__(self) -> None:
-        """Validate Chronos2-specific parameters."""
+        """Validate Chronos2-specific parameters.
+
+        Automatically called after dataclass initialization to ensure
+        quantiles are valid probability values.
+
+        Raises:
+            ValueError: If quantiles are not in the range [0.0, 1.0]
+        """
         super().__post_init__()
 
         if self.quantiles is not None:
@@ -88,7 +103,14 @@ class Chronos2ForecastRequest(ForecastRequest):
                 raise ValueError(f"quantiles must be in [0.0, 1.0], got {self.quantiles}")
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-        """Convert Chronos2 request to Arrow format."""
+        """Convert Chronos2 request to Arrow format.
+
+        Separates request into large arrays (sent as Arrow columns) and
+        small metadata parameters (sent in Arrow schema metadata).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
         arrays, metadata = super().to_arrays_and_metadata()
 
         # Add Chronos2-specific metadata (small parameters)
@@ -111,7 +133,14 @@ class TiRexForecastRequest(ForecastRequest):
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-        """Convert TiRex request to Arrow format."""
+        """Convert TiRex request to Arrow format.
+
+        Separates request into large arrays (sent as Arrow columns) and
+        small metadata parameters (sent in Arrow schema metadata).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
         arrays, metadata = super().to_arrays_and_metadata()
 
         # Add TiRex-specific metadata
@@ -141,7 +170,15 @@ class FlowStateForecastRequest(ForecastRequest):
              'quantile' (requires output_type='quantiles')."""
 
     def __post_init__(self) -> None:
-        """Validate FlowState-specific parameters."""
+        """Validate FlowState-specific parameters.
+
+        Automatically called after dataclass initialization to ensure
+        parameter validity and consistency between output_type and prediction_type.
+
+        Raises:
+            ValueError: If scale_factor is non-positive, or if output_type and
+                       prediction_type are incompatible
+        """
         super().__post_init__()
 
         if self.scale_factor is not None and self.scale_factor <= 0:
@@ -172,7 +209,14 @@ class FlowStateForecastRequest(ForecastRequest):
             )
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-        """Convert FlowState request to Arrow format."""
+        """Convert FlowState request to Arrow format.
+
+        Separates request into large arrays (sent as Arrow columns) and
+        small metadata parameters (sent in Arrow schema metadata).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
         arrays, metadata = super().to_arrays_and_metadata()
 
         # Add FlowState-specific metadata
@@ -237,6 +281,11 @@ class ForecastResponse:
         )
 
     def __repr__(self) -> str:
+        """Return string representation of forecast response.
+
+        Returns:
+            Human-readable string showing available outputs and their shapes
+        """
         outputs = []
         if self.point is not None:
             outputs.append(f"point.shape={self.point.shape}")

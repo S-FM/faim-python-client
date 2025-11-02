@@ -486,29 +486,93 @@ class ForecastClient:
             ) from e
 
     def close(self) -> None:
-        """Close underlying HTTP client and release resources."""
+        """Close underlying HTTP client and release resources.
+
+        Should be called when the client is no longer needed to properly
+        release connection pool resources. Alternatively, use the client
+        as a context manager which handles cleanup automatically.
+
+        Example:
+            >>> client = ForecastClient(base_url="https://api.example.com")
+            >>> try:
+            ...     response = client.forecast(model, request)
+            ... finally:
+            ...     client.close()
+        """
         if hasattr(self._client, "_client") and self._client._client:
             self._client._client.close()
         logger.debug("ForecastClient closed")
 
     async def aclose(self) -> None:
-        """Close underlying async HTTP client and release resources."""
+        """Close underlying async HTTP client and release resources.
+
+        Async equivalent of close(). Should be called when the async client
+        is no longer needed. Alternatively, use the client as an async
+        context manager which handles cleanup automatically.
+
+        Example:
+            >>> client = ForecastClient(base_url="https://api.example.com")
+            >>> try:
+            ...     response = await client.forecast_async(model, request)
+            ... finally:
+            ...     await client.aclose()
+        """
         if hasattr(self._client, "_async_client") and self._client._async_client:
             await self._client._async_client.aclose()
         logger.debug("Async ForecastClient closed")
 
     def __enter__(self) -> "ForecastClient":
-        """Enter sync context manager."""
+        """Enter sync context manager.
+
+        Enables using the client with Python's 'with' statement for
+        automatic resource cleanup.
+
+        Returns:
+            The client instance
+
+        Example:
+            >>> with ForecastClient(base_url="https://api.example.com") as client:
+            ...     response = client.forecast(ModelName.CHRONOS2, request)
+            ...     # Client automatically closed on exit
+        """
         return self
 
     def __exit__(self, *args) -> None:
-        """Exit sync context manager."""
+        """Exit sync context manager and release resources.
+
+        Automatically called when exiting a 'with' block. Ensures proper
+        cleanup of HTTP connections.
+
+        Args:
+            *args: Exception information (exc_type, exc_value, traceback) if an
+                   exception occurred within the with block
+        """
         self.close()
 
     async def __aenter__(self) -> "ForecastClient":
-        """Enter async context manager."""
+        """Enter async context manager.
+
+        Enables using the client with Python's 'async with' statement for
+        automatic resource cleanup in async code.
+
+        Returns:
+            The client instance
+
+        Example:
+            >>> async with ForecastClient(base_url="https://api.example.com") as client:
+            ...     response = await client.forecast_async(ModelName.CHRONOS2, request)
+            ...     # Client automatically closed on exit
+        """
         return self
 
     async def __aexit__(self, *args) -> None:
-        """Exit async context manager."""
+        """Exit async context manager and release resources.
+
+        Automatically called when exiting an 'async with' block. Ensures proper
+        cleanup of HTTP connections.
+
+        Args:
+            *args: Exception information (exc_type, exc_value, traceback) if an
+                   exception occurred within the async with block
+        """
         await self.aclose()
