@@ -5,6 +5,7 @@ and observability.
 """
 
 import io
+import json
 import logging
 
 import httpx
@@ -12,15 +13,21 @@ import httpx
 from faim_client import AuthenticatedClient, Client
 from faim_client.api.forecast import forecast_v1_ts_forecast_model_name_model_version_post
 from faim_client.models import ModelName
+from faim_client.models.error_code import ErrorCode
+from faim_client.models.error_response import ErrorResponse
 from faim_client.types import File
 
 from .exceptions import (
     APIError,
+    AuthenticationError,
+    InsufficientFundsError,
     InternalServerError,
     ModelNotFoundError,
     NetworkError,
     PayloadTooLargeError,
+    RateLimitError,
     SerializationError,
+    ServiceUnavailableError,
     TimeoutError,
     ValidationError,
 )
@@ -28,6 +35,30 @@ from .models import ForecastRequest, ForecastResponse
 from .utils import deserialize_from_arrow, serialize_to_arrow
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_error_response(response) -> ErrorResponse | None:
+    """Parse ErrorResponse from HTTP response body.
+
+    Args:
+        response: HTTP response object from generated client
+
+    Returns:
+        Parsed ErrorResponse if available, None otherwise
+    """
+    try:
+        # Try parsing from response.parsed first (generated client parsing)
+        if hasattr(response, "parsed") and isinstance(response.parsed, ErrorResponse):
+            return response.parsed
+
+        # Fallback: try parsing JSON content directly
+        if hasattr(response, "content") and response.content:
+            error_dict = json.loads(response.content)
+            return ErrorResponse.from_dict(error_dict)
+    except Exception as e:
+        logger.warning(f"Failed to parse error response: {e}")
+
+    return None
 
 
 class ForecastClient:
@@ -40,17 +71,17 @@ class ForecastClient:
     - Support for both sync and async operations
 
     Example:
-        >>> from faim_sdk import ForecastClient, ToToForecastRequest
+        >>> from faim_sdk import ForecastClient, Chronos2ForecastRequest
         >>> from faim_client.models import ModelName
         >>>
         >>> client = ForecastClient(base_url="https://api.example.com")
-        >>> request = ToToForecastRequest(
+        >>> request = Chronos2ForecastRequest(
         ...     x=data,
         ...     horizon=10,
         ...     quantiles=[0.1, 0.5, 0.9]
         ... )
-        >>> response = client.forecast(ModelName.TOTO, request)
-        >>> print(response.predictions.shape)
+        >>> response = client.forecast(ModelName.CHRONOS2, request)
+        >>> print(response.point.shape)
     """
 
     def __init__(
@@ -108,19 +139,23 @@ class ForecastClient:
         """Generate time-series forecast (synchronous).
 
         Args:
-            model: Model to use (ModelName.TOTO or ModelName.FLOWSTATE)
+            model: Model to use (ModelName.FLOWSTATE, ModelName.CHRONOS2, or ModelName.TIREX)
             request: Model-specific forecast request
 
         Returns:
             ForecastResponse with predictions and metadata
 
         Raises:
-            SerializationError: If request serialization or response deserialization fails
+            AuthenticationError: If authentication fails (401, 403)
+            InsufficientFundsError: If billing account balance is insufficient (402)
             ModelNotFoundError: If model or version doesn't exist (404)
             PayloadTooLargeError: If request exceeds size limit (413)
             ValidationError: If request parameters are invalid (422)
+            RateLimitError: If rate limit exceeded (429)
             InternalServerError: If backend encounters error (500)
+            ServiceUnavailableError: If service unavailable (503, 504)
             NetworkError: If network communication fails
+            SerializationError: If request serialization or response deserialization fails
             TimeoutError: If request exceeds timeout
             APIError: For other API errors
 
@@ -187,46 +222,82 @@ class ForecastClient:
                 details={"model": str(model), "error_type": type(e).__name__},
             ) from e
 
-        # Handle HTTP errors
-        if response.status_code == 404:
-            logger.error(f"Model not found: {model}/{request.model_version}")
-            raise ModelNotFoundError(
-                f"Model {model}/{request.model_version} not found",
-                status_code=404,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
+        # Handle non-200 responses with error contract
+        if response.status_code != 200:
+            error_response = _parse_error_response(response)
 
-        elif response.status_code == 413:
-            logger.error(f"Payload too large: {len(payload)} bytes")
-            raise PayloadTooLargeError(
-                f"Request payload too large ({len(payload)} bytes)",
-                status_code=413,
-                details={"payload_size": len(payload)},
-            )
+            # Build error message from ErrorResponse or fallback
+            if error_response:
+                message = error_response.message
+                if error_response.detail:
+                    message = f"{message}: {error_response.detail}"
 
-        elif response.status_code == 422:
-            logger.error("Request validation failed")
-            raise ValidationError(
-                "Request parameters are invalid",
-                status_code=422,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
+                logger.error(
+                    f"API error: status={response.status_code}, "
+                    f"code={error_response.error_code}, "
+                    f"message={error_response.message}, "
+                    f"request_id={error_response.request_id}"
+                )
+            else:
+                message = f"Request failed with status {response.status_code}"
+                logger.error(f"API error: status={response.status_code}, no error_response")
 
-        elif response.status_code == 500:
-            logger.error("Internal server error")
-            raise InternalServerError(
-                "Backend encountered an internal error",
-                status_code=500,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
-
-        elif response.status_code != 200:
-            logger.error(f"Unexpected status code: {response.status_code}")
-            raise APIError(
-                f"Unexpected status code: {response.status_code}",
-                status_code=response.status_code,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
+            # Map HTTP status code to exception class
+            if response.status_code in (401, 403):
+                raise AuthenticationError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 402:
+                raise InsufficientFundsError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 404:
+                raise ModelNotFoundError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 413:
+                raise PayloadTooLargeError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 422:
+                raise ValidationError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 429:
+                raise RateLimitError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 500:
+                raise InternalServerError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code in (503, 504):
+                raise ServiceUnavailableError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            else:
+                # Fallback for unmapped status codes
+                raise APIError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
 
         # Deserialize successful response
         try:
@@ -250,7 +321,7 @@ class ForecastClient:
         """Generate time-series forecast (asynchronous).
 
         Args:
-            model: Model to use (ModelName.TOTO or ModelName.FLOWSTATE)
+            model: Model to use (ModelName.FLOWSTATE, ModelName.CHRONOS2, or ModelName.TIREX)
             request: Model-specific forecast request
 
         Returns:
@@ -260,8 +331,8 @@ class ForecastClient:
             Same exceptions as forecast()
 
         Example:
-            >>> request = ToToForecastRequest(x=data, horizon=10)
-            >>> response = await client.forecast_async(ModelName.TOTO, request)
+            >>> request = Chronos2ForecastRequest(x=data, horizon=10)
+            >>> response = await client.forecast_async(ModelName.CHRONOS2, request)
         """
         logger.debug(f"Starting async forecast: model={model}, version={request.model_version}")
 
@@ -319,37 +390,82 @@ class ForecastClient:
                 details={"model": str(model), "error_type": type(e).__name__},
             ) from e
 
-        # Handle HTTP errors (same as sync)
-        if response.status_code == 404:
-            raise ModelNotFoundError(
-                f"Model {model}/{request.model_version} not found",
-                status_code=404,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
-        elif response.status_code == 413:
-            raise PayloadTooLargeError(
-                f"Request payload too large ({len(payload)} bytes)",
-                status_code=413,
-                details={"payload_size": len(payload)},
-            )
-        elif response.status_code == 422:
-            raise ValidationError(
-                "Request parameters are invalid",
-                status_code=422,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
-        elif response.status_code == 500:
-            raise InternalServerError(
-                "Backend encountered an internal error",
-                status_code=500,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
-        elif response.status_code != 200:
-            raise APIError(
-                f"Unexpected status code: {response.status_code}",
-                status_code=response.status_code,
-                response=response.parsed if hasattr(response, "parsed") else None,
-            )
+        # Handle non-200 responses with error contract (same as sync)
+        if response.status_code != 200:
+            error_response = _parse_error_response(response)
+
+            # Build error message from ErrorResponse or fallback
+            if error_response:
+                message = error_response.message
+                if error_response.detail:
+                    message = f"{message}: {error_response.detail}"
+
+                logger.error(
+                    f"API error: status={response.status_code}, "
+                    f"code={error_response.error_code}, "
+                    f"message={error_response.message}, "
+                    f"request_id={error_response.request_id}"
+                )
+            else:
+                message = f"Request failed with status {response.status_code}"
+                logger.error(f"API error: status={response.status_code}, no error_response")
+
+            # Map HTTP status code to exception class
+            if response.status_code in (401, 403):
+                raise AuthenticationError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 402:
+                raise InsufficientFundsError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 404:
+                raise ModelNotFoundError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 413:
+                raise PayloadTooLargeError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 422:
+                raise ValidationError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 429:
+                raise RateLimitError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code == 500:
+                raise InternalServerError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            elif response.status_code in (503, 504):
+                raise ServiceUnavailableError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
+            else:
+                # Fallback for unmapped status codes
+                raise APIError(
+                    message=message,
+                    status_code=response.status_code,
+                    error_response=error_response,
+                )
 
         # Deserialize response
         try:

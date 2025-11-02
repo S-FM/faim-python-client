@@ -1,10 +1,12 @@
 """Exceptions for FAIM SDK.
 
 Provides a hierarchy of exceptions for precise error handling and debugging.
+Integrates with the unified error contract via generated ErrorResponse and ErrorCode.
 """
 
 from typing import Any
 
+from faim_client.models.error_code import ErrorCode
 from faim_client.models.error_response import ErrorResponse
 
 
@@ -47,14 +49,15 @@ class SerializationError(FAIMError):
 class APIError(FAIMError):
     """Base exception for API-related errors.
 
-    Captures HTTP status codes and server error responses.
+    Captures HTTP status codes and server error responses with error contract integration.
+    All API errors include an optional ErrorResponse with machine-readable error codes.
     """
 
     def __init__(
         self,
         message: str,
         status_code: int | None = None,
-        response: ErrorResponse | None = None,
+        error_response: ErrorResponse | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
         """Initialize API error.
@@ -62,19 +65,38 @@ class APIError(FAIMError):
         Args:
             message: Human-readable error message
             status_code: HTTP status code from response
-            response: Parsed error response from backend
-            details: Additional context
+            error_response: Parsed error response from backend (includes error_code, message, detail)
+            details: Additional context for debugging
         """
         super().__init__(message, details)
         self.status_code = status_code
-        self.response = response
+        self.error_response = error_response
+
+    @property
+    def error_code(self) -> ErrorCode | None:
+        """Get machine-readable error code from error response.
+
+        Returns:
+            ErrorCode enum value if available, None otherwise
+
+        Example:
+            try:
+                client.forecast(...)
+            except ValidationError as e:
+                if e.error_code == ErrorCode.INVALID_SHAPE:
+                    # Handle shape error specifically
+                    pass
+        """
+        return self.error_response.error_code if self.error_response else None
 
     def __str__(self) -> str:
         parts = [self.message]
         if self.status_code:
             parts.append(f"status={self.status_code}")
-        if self.response:
-            parts.append(f"response={self.response}")
+        if self.error_response:
+            parts.append(f"error_code={self.error_response.error_code}")
+            if self.error_response.request_id:
+                parts.append(f"request_id={self.error_response.request_id}")
         if self.details:
             parts.append(f"details={self.details}")
         return " | ".join(parts)
@@ -84,8 +106,13 @@ class ModelNotFoundError(APIError):
     """Raised when specified model or version doesn't exist (404).
 
     Check that:
-    - Model name is valid (e.g., 'flowstate', 'toto')
+    - Model name is valid (e.g., 'flowstate', 'chronos2', 'tirex')
     - Model version is deployed on backend
+
+    Error codes:
+    - MODEL_NOT_FOUND
+    - PRICING_NOT_FOUND
+    - RESOURCE_NOT_FOUND
     """
 
     pass
@@ -107,10 +134,19 @@ class ValidationError(APIError):
     """Raised when backend rejects request as invalid (422).
 
     Common causes:
-    - Missing required parameters (e.g., horizon, x)
+    - Missing required parameters (e.g., horizon, x, output_type)
     - Invalid parameter values
     - Incompatible array shapes
     - Model-specific parameter errors
+
+    Error codes:
+    - VALIDATION_ERROR
+    - INVALID_MODEL_INPUT
+    - INVALID_PARAMETER
+    - MISSING_REQUIRED_FIELD
+    - INVALID_SHAPE
+    - INVALID_DTYPE
+    - INVALID_VALUE_RANGE
     """
 
     pass
@@ -152,11 +188,73 @@ class TimeoutError(FAIMError):
 
 
 class AuthenticationError(APIError):
-    """Raised when authentication fails (401).
+    """Raised when authentication fails (401, 403).
 
     Check that:
-    - Token is valid and not expired
-    - Token has required permissions
+    - API key is valid and not expired
+    - API key has required permissions
+
+    Error codes:
+    - AUTHENTICATION_REQUIRED
+    - AUTHENTICATION_FAILED
+    - INVALID_API_KEY
+    - AUTHORIZATION_FAILED
+    """
+
+    pass
+
+
+class InsufficientFundsError(APIError):
+    """Raised when billing account balance is insufficient (402).
+
+    This indicates the user's account doesn't have enough credits
+    to perform the requested inference.
+
+    Actions:
+    - Add credits to billing account
+    - Check pricing for the model/version being used
+
+    Error codes:
+    - INSUFFICIENT_FUNDS
+    - BILLING_TRANSACTION_FAILED
+    """
+
+    pass
+
+
+class RateLimitError(APIError):
+    """Raised when rate limit is exceeded (429).
+
+    The user has made too many requests in a short period.
+
+    Actions:
+    - Implement exponential backoff retry logic
+    - Reduce request frequency
+    - Contact support for rate limit increases
+
+    Error codes:
+    - RATE_LIMIT_EXCEEDED
+    """
+
+    pass
+
+
+class ServiceUnavailableError(APIError):
+    """Raised when service is temporarily unavailable (503, 504).
+
+    This typically indicates transient infrastructure issues that
+    may be resolved by retrying with exponential backoff.
+
+    Common causes:
+    - Triton server connection failures
+    - GPU/CPU resources exhausted
+    - Out of memory conditions
+
+    Error codes:
+    - TRITON_CONNECTION_ERROR
+    - RESOURCE_EXHAUSTED
+    - OUT_OF_MEMORY
+    - TIMEOUT_ERROR (504)
     """
 
     pass

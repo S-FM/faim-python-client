@@ -18,7 +18,7 @@ class ForecastRequest:
     """Base forecast request with common parameters.
 
     This is the base class for all model-specific forecast requests.
-    Use model-specific subclasses (ToToForecastRequest, FlowStateForecastRequest)
+    Use model-specific subclasses (FlowStateForecastRequest, Chronos2ForecastRequest, TiRexForecastRequest)
     for better type safety and IDE support.
     """
 
@@ -64,69 +64,58 @@ class ForecastRequest:
 
 
 @dataclass
-class ToToForecastRequest(ForecastRequest):
-    """Forecast request for ToTo model with probabilistic forecasting support.
+class Chronos2ForecastRequest(ForecastRequest):
+    """Forecast request for Chronos2 model.
 
-    ToTo supports multi-series forecasting with padding masks and
-    probabilistic predictions via sampling or quantiles.
+    Amazon Chronos 2.0 - Large language model for time series forecasting.
+    Supports point and quantile predictions.
     """
 
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
-    padding_mask: np.ndarray | None = None
-    """Padding mask for variable-length sequences. Shape: same as x.
-    1 for valid timesteps, 0 for padding."""
-
-    id_mask: np.ndarray | None = None
-    """Identifier mask for multi-series forecasting. Shape: (batch_size,).
-    Each unique ID represents a different time series."""
-
-    num_samples: int | None = None
-    """Number of forecast samples for probabilistic predictions.
-    If set, returns sample-based distribution."""
-
     quantiles: list[float] | None = None
     """Quantile levels for probabilistic forecasting.
-    Example: [0.1, 0.5, 0.9] for 10th, 50th (median), 90th percentiles."""
+    Example: [0.1, 0.5, 0.9] for 10th, 50th (median), 90th percentiles.
+    Only used when output_type='quantiles'."""
 
     def __post_init__(self) -> None:
-        """Validate ToTo-specific parameters."""
+        """Validate Chronos2-specific parameters."""
         super().__post_init__()
 
-        if self.padding_mask is not None:
-            if not isinstance(self.padding_mask, np.ndarray):
-                raise TypeError("padding_mask must be numpy.ndarray")
-            if self.padding_mask.shape != self.x.shape:
-                raise ValueError(f"padding_mask shape {self.padding_mask.shape} must match x shape {self.x.shape}")
-
-        if self.id_mask is not None:
-            if not isinstance(self.id_mask, np.ndarray):
-                raise TypeError("id_mask must be numpy.ndarray")
-
-        if self.num_samples is not None and self.num_samples <= 0:
-            raise ValueError(f"num_samples must be positive, got {self.num_samples}")
-
         if self.quantiles is not None:
-            if not all(0 <= q <= 1 for q in self.quantiles):
-                raise ValueError(f"quantiles must be in [0, 1], got {self.quantiles}")
+            if not all(0.0 <= q <= 1.0 for q in self.quantiles):
+                raise ValueError(f"quantiles must be in [0.0, 1.0], got {self.quantiles}")
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-        """Convert ToTo request to Arrow format."""
+        """Convert Chronos2 request to Arrow format."""
         arrays, metadata = super().to_arrays_and_metadata()
 
-        # Add ToTo-specific arrays (large data)
-        if self.padding_mask is not None:
-            arrays["padding_mask"] = self.padding_mask
-        if self.id_mask is not None:
-            arrays["id_mask"] = self.id_mask
-
-        # Add ToTo-specific metadata (small parameters)
+        # Add Chronos2-specific metadata (small parameters)
         metadata["output_type"] = self.output_type
-        if self.num_samples is not None:
-            metadata["num_samples"] = self.num_samples
         if self.quantiles is not None:
             metadata["quantiles"] = self.quantiles
+
+        return arrays, metadata
+
+
+@dataclass
+class TiRexForecastRequest(ForecastRequest):
+    """Forecast request for TiRex model.
+
+    TiRex - Transformer-based time series forecasting.
+    Supports point and quantile predictions.
+    """
+
+    output_type: OutputType = "point"
+    """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
+
+    def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+        """Convert TiRex request to Arrow format."""
+        arrays, metadata = super().to_arrays_and_metadata()
+
+        # Add TiRex-specific metadata
+        metadata["output_type"] = self.output_type
 
         return arrays, metadata
 
@@ -209,13 +198,13 @@ class ForecastResponse:
 
     # Backend outputs
     point: np.ndarray | None = None
-    """Point predictions from FlowState. Shape: (batch_size, horizon, features)"""
+    """Point predictions. Shape: (batch_size, horizon, features)"""
 
     quantiles: np.ndarray | None = None
-    """Quantile predictions from ToTo. Shape: (batch_size, horizon, num_quantiles)"""
+    """Quantile predictions. Shape: (batch_size, horizon, num_quantiles)"""
 
     samples: np.ndarray | None = None
-    """Sample predictions from ToTo. Shape: (batch_size, horizon, num_samples)"""
+    """Sample predictions. Shape: (batch_size, horizon, num_samples)"""
 
     @classmethod
     def from_arrays_and_metadata(cls, arrays: dict[str, np.ndarray], metadata: dict[str, Any]) -> "ForecastResponse":
