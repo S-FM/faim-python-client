@@ -13,7 +13,6 @@ Install the SDK:
 Basic usage:
 
     >>> from faim_sdk import ForecastClient, Chronos2ForecastRequest
-    >>> from faim_client.models import ModelName
     >>> import numpy as np
     >>>
     >>> # Initialize client
@@ -31,8 +30,8 @@ Basic usage:
     ...     quantiles=[0.1, 0.5, 0.9]
     ... )
     >>>
-    >>> # Generate forecast
-    >>> response = client.forecast(ModelName.CHRONOS2, request)
+    >>> # Generate forecast - model inferred automatically
+    >>> response = client.forecast(request)
     >>> print(response.quantiles.shape)  # (32, 10, 3)
 
 Main Components
@@ -71,10 +70,11 @@ Error Handling
 
 The SDK uses machine-readable error codes for programmatic error handling:
 
-    >>> from faim_sdk import ValidationError, ErrorCode
+    >>> from faim_sdk import ValidationError, ErrorCode, Chronos2ForecastRequest
     >>>
     >>> try:
-    ...     response = client.forecast(ModelName.CHRONOS2, request)
+    ...     request = Chronos2ForecastRequest(x=data, horizon=10, quantiles=[0.1, 0.5, 0.9])
+    ...     response = client.forecast(request)
     >>> except ValidationError as e:
     ...     if e.error_code == ErrorCode.INVALID_SHAPE:
     ...         print(f"Shape error: {e.error_response.detail}")
@@ -142,4 +142,4 @@ __all__ = [
     "ConfigurationError",
 ]
 
-__version__ = "0.2.1"
+__version__ = "0.3.3"

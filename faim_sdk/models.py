@@ -5,9 +5,11 @@ model-specific parameter classes.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import numpy as np
+
+from faim_client.models import ModelName
 
 # Type alias for output types
 OutputType = Literal["point", "quantiles", "samples"]
@@ -22,6 +24,9 @@ class ForecastRequest:
     for better type safety and IDE support.
     """
 
+    # Class variable to be overridden by subclasses
+    _model_name: ClassVar[ModelName]
+
     x: np.ndarray
     """Time series data. Shape: (batch_size, sequence_length, features) or (sequence_length, features)"""
 
@@ -33,6 +38,19 @@ class ForecastRequest:
 
     compression: str | None = "zstd"
     """Arrow compression algorithm. Options: 'zstd', 'lz4', None. Default: 'zstd'"""
+
+    @property
+    def model_name(self) -> ModelName:
+        """Get the model name for this request type.
+
+        Returns:
+            ModelName enum value indicating which model to use
+
+        Example:
+            >>> request = Chronos2ForecastRequest(x=data, horizon=10)
+            >>> print(request.model_name)  # ModelName.CHRONOS2
+        """
+        return self._model_name
 
     def __post_init__(self) -> None:
         """Validate common parameters.
@@ -78,6 +96,8 @@ class Chronos2ForecastRequest(ForecastRequest):
     Amazon Chronos 2.0 - Large language model for time series forecasting.
     Supports point and quantile predictions.
     """
+
+    _model_name: ClassVar[ModelName] = ModelName.CHRONOS2
 
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
@@ -129,6 +149,8 @@ class TiRexForecastRequest(ForecastRequest):
     Supports point and quantile predictions.
     """
 
+    _model_name: ClassVar[ModelName] = ModelName.TIREX
+
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
@@ -156,6 +178,8 @@ class FlowStateForecastRequest(ForecastRequest):
     FlowState is optimized for point forecasts with optional scaling
     and different prediction modes.
     """
+
+    _model_name: ClassVar[ModelName] = ModelName.FLOWSTATE
 
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""

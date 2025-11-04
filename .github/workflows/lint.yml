@@ -1,0 +1,81 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, develop, feat/**]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ruff:
+    name: Ruff (Linter & Formatter)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff linter
+        run: ruff check faim_sdk/ faim_client/ tests/
+
+      - name: Run Ruff formatter check
+        run: ruff format --check faim_sdk/ faim_client/ tests/
+
+  type-check:
+    name: Type Checking (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e .
+          uv pip install --system mypy types-requests
+
+      - name: Run mypy
+        run: mypy faim_sdk/ --ignore-missing-imports --no-strict-optional
+        continue-on-error: true
+
+  package-check:
+    name: Package Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: pip install poetry build twine
+
+      - name: Build package
+        run: poetry build
+
+      - name: Check package with twine
+        run: twine check dist/*
+
+      - name: Verify package contents
+        run: |
+          tar -tzf dist/*.tar.gz | grep -E "faim_sdk|faim_client"
+          unzip -l dist/*.whl | grep -E "faim_sdk|faim_client"

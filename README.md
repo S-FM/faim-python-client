@@ -28,7 +28,6 @@ pip install faim-sdk
 ```python
 import numpy as np
 from faim_sdk import ForecastClient, Chronos2ForecastRequest
-from faim_client.models import ModelName
 
 # Initialize client with your API endpoint
 client = ForecastClient(
@@ -49,8 +48,8 @@ request = Chronos2ForecastRequest(
     quantiles=[0.1, 0.5, 0.9]  # 10th, 50th (median), 90th percentiles
 )
 
-# Generate forecast
-response = client.forecast(ModelName.CHRONOS2, request)
+# Generate forecast - model inferred automatically from request type
+response = client.forecast(request)
 
 # Access predictions
 print(response.quantiles.shape)  # (32, 24, 3)
@@ -75,7 +74,7 @@ request = FlowStateForecastRequest(
     prediction_type="mean"  # Options: "mean", "median"
 )
 
-response = client.forecast(ModelName.FLOWSTATE, request)
+response = client.forecast(request)
 print(response.point.shape)  # (batch_size, 24, features)
 ```
 
@@ -94,7 +93,7 @@ request = Chronos2ForecastRequest(
     quantiles=[0.05, 0.25, 0.5, 0.75, 0.95]  # Full distribution
 )
 
-response = client.forecast(ModelName.CHRONOS2, request)
+response = client.forecast(request)
 print(response.quantiles.shape)  # (batch_size, 24, 5)
 ```
 
@@ -111,7 +110,7 @@ request = TiRexForecastRequest(
     output_type="point"
 )
 
-response = client.forecast(ModelName.TIREX, request)
+response = client.forecast(request)
 print(response.point.shape)  # (batch_size, 24, features)
 ```
 
@@ -120,7 +119,7 @@ print(response.point.shape)  # (batch_size, 24, features)
 All forecasts return a `ForecastResponse` object with predictions and metadata:
 
 ```python
-response = client.forecast(ModelName.CHRONOS2, request)
+response = client.forecast(request)
 
 # Access predictions based on output_type
 if response.point is not None:
@@ -252,7 +251,6 @@ fig, axes = plot_forecast(
 import numpy as np
 from faim_sdk import ForecastClient, Chronos2ForecastRequest
 from faim_sdk.eval import mse, mase, crps_from_quantiles, plot_forecast
-from faim_client.models import ModelName
 
 # Initialize client
 client = ForecastClient(base_url="https://api.faim.example.com")
@@ -268,7 +266,7 @@ request = Chronos2ForecastRequest(
     output_type="quantiles",
     quantiles=[0.1, 0.5, 0.9]
 )
-response = client.forecast(ModelName.CHRONOS2, request)
+response = client.forecast(request)
 
 # Evaluate point forecast (use median)
 point_pred = response.quantiles[:, :, 1:2]  # Extract median, keep 3D shape
@@ -315,6 +313,7 @@ The SDK provides **machine-readable error codes** for robust error handling:
 ```python
 from faim_sdk import (
     ForecastClient,
+    Chronos2ForecastRequest,
     ValidationError,
     AuthenticationError,
     RateLimitError,
@@ -323,7 +322,8 @@ from faim_sdk import (
 )
 
 try:
-    response = client.forecast(ModelName.CHRONOS2, request)
+    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.5, 0.9])
+    response = client.forecast(request)
 
 except AuthenticationError as e:
     # Handle authentication failures (401, 403)
@@ -375,7 +375,6 @@ The SDK supports async operations for concurrent requests:
 ```python
 import asyncio
 from faim_sdk import ForecastClient, Chronos2ForecastRequest
-from faim_client.models import ModelName
 
 async def forecast_multiple_series():
     client = ForecastClient(
@@ -393,7 +392,7 @@ async def forecast_multiple_series():
     # Execute concurrently
     async with client:
         tasks = [
-            client.forecast_async(ModelName.CHRONOS2, req)
+            client.forecast_async(req)
             for req in requests
         ]
         responses = await asyncio.gather(*tasks)
@@ -462,13 +461,15 @@ Use context managers for automatic resource cleanup:
 ```python
 # Sync context manager
 with ForecastClient(base_url="https://api.faim.example.com") as client:
-    response = client.forecast(ModelName.CHRONOS2, request)
+    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.5, 0.9])
+    response = client.forecast(request)
     print(response.quantiles)
 # Client automatically closed
 
 # Async context manager
 async with ForecastClient(base_url="https://api.faim.example.com") as client:
-    response = await client.forecast_async(ModelName.CHRONOS2, request)
+    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.9])
+    response = await client.forecast_async(request)
     print(response.quantiles)
 # Client automatically closed
 ```

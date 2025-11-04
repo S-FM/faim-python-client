@@ -69,10 +69,10 @@ class ForecastClient:
     - Comprehensive error handling with specific exception types
     - Request/response logging for observability
     - Support for both sync and async operations
+    - Automatic model inference from request type
 
     Example:
         >>> from faim_sdk import ForecastClient, Chronos2ForecastRequest
-        >>> from faim_client.models import ModelName
         >>>
         >>> client = ForecastClient(base_url="https://api.example.com")
         >>> request = Chronos2ForecastRequest(
@@ -80,8 +80,8 @@ class ForecastClient:
         ...     horizon=10,
         ...     quantiles=[0.1, 0.5, 0.9]
         ... )
-        >>> response = client.forecast(ModelName.CHRONOS2, request)
-        >>> print(response.point.shape)
+        >>> response = client.forecast(request)  # Model inferred automatically
+        >>> print(response.quantiles.shape)
     """
 
     def __init__(
@@ -135,12 +135,17 @@ class ForecastClient:
             )
             logger.info(f"Initialized ForecastClient: base_url={base_url}, timeout={timeout}s")
 
-    def forecast(self, model: ModelName, request: ForecastRequest) -> ForecastResponse:
+    def forecast(self, request: ForecastRequest) -> ForecastResponse:
         """Generate time-series forecast (synchronous).
 
+        The model is automatically inferred from the request type:
+        - FlowStateForecastRequest → FlowState
+        - Chronos2ForecastRequest → Chronos2
+        - TiRexForecastRequest → TiRex
+
         Args:
-            model: Model to use (ModelName.FLOWSTATE, ModelName.CHRONOS2, or ModelName.TIREX)
-            request: Model-specific forecast request
+            request: Model-specific forecast request (FlowStateForecastRequest,
+                    Chronos2ForecastRequest, or TiRexForecastRequest)
 
         Returns:
             ForecastResponse with predictions and metadata
@@ -161,8 +166,9 @@ class ForecastClient:
 
         Example:
             >>> request = FlowStateForecastRequest(x=data, horizon=10)
-            >>> response = client.forecast(ModelName.FLOWSTATE, request)
+            >>> response = client.forecast(request)
         """
+        model = request.model_name
         logger.debug(
             f"Starting forecast: model={model}, version={request.model_version}, "
             f"x.shape={request.x.shape}, horizon={request.horizon}"
@@ -317,12 +323,17 @@ class ForecastClient:
                 details={"model": str(model), "error": str(e)},
             ) from e
 
-    async def forecast_async(self, model: ModelName, request: ForecastRequest) -> ForecastResponse:
+    async def forecast_async(self, request: ForecastRequest) -> ForecastResponse:
         """Generate time-series forecast (asynchronous).
 
+        The model is automatically inferred from the request type:
+        - FlowStateForecastRequest → FlowState
+        - Chronos2ForecastRequest → Chronos2
+        - TiRexForecastRequest → TiRex
+
         Args:
-            model: Model to use (ModelName.FLOWSTATE, ModelName.CHRONOS2, or ModelName.TIREX)
-            request: Model-specific forecast request
+            request: Model-specific forecast request (FlowStateForecastRequest,
+                    Chronos2ForecastRequest, or TiRexForecastRequest)
 
         Returns:
             ForecastResponse with predictions and metadata
@@ -332,8 +343,9 @@ class ForecastClient:
 
         Example:
             >>> request = Chronos2ForecastRequest(x=data, horizon=10)
-            >>> response = await client.forecast_async(ModelName.CHRONOS2, request)
+            >>> response = await client.forecast_async(request)
         """
+        model = request.model_name
         logger.debug(f"Starting async forecast: model={model}, version={request.model_version}")
 
         # Serialize request
@@ -532,7 +544,7 @@ class ForecastClient:
 
         Example:
             >>> with ForecastClient(base_url="https://api.example.com") as client:
-            ...     response = client.forecast(ModelName.CHRONOS2, request)
+            ...     response = client.forecast(request)
             ...     # Client automatically closed on exit
         """
         return self
@@ -560,7 +572,7 @@ class ForecastClient:
 
         Example:
             >>> async with ForecastClient(base_url="https://api.example.com") as client:
-            ...     response = await client.forecast_async(ModelName.CHRONOS2, request)
+            ...     response = await client.forecast_async(request)
             ...     # Client automatically closed on exit
         """
         return self
