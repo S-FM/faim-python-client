@@ -23,10 +23,10 @@ jobs:
         run: pip install ruff
 
       - name: Run Ruff linter
-        run: ruff check faim_sdk/ faim_client/ tests/
+        run: ruff check .
 
       - name: Run Ruff formatter check
-        run: ruff format --check faim_sdk/ faim_client/ tests/
+        run: ruff format --check .
 
   type-check:
     name: Type Checking (mypy)
