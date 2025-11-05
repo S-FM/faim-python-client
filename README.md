@@ -25,7 +25,7 @@ pip install faim-sdk
 
 ## Authentication
 
-Get your free API key at **[https://faim.it.com/](https://faim.it.com/)**
+Get your API key at **[https://faim.it.com/](https://faim.it.com/)**
 
 ```python
 from faim_sdk import ForecastClient
@@ -459,81 +459,11 @@ async def forecast_multiple_series():
 responses = asyncio.run(forecast_multiple_series())
 ```
 
-## Configuration
-
-### Client Options
-
-```python
-from faim_sdk import ForecastClient
-
-# Basic configuration
-client = ForecastClient(
-    timeout=120.0,  # Request timeout in seconds (default: 120)
-    verify_ssl=True,  # SSL certificate verification (default: True)
-)
-
-# With API key authentication
-client = ForecastClient(
-    api_key="your-secret-api-key",
-    timeout=120.0
-)
-
-# Advanced configuration with custom httpx settings
-import httpx
-
-client = ForecastClient(
-    api_key="your-api-key",
-    timeout=120.0,
-    limits=httpx.Limits(max_connections=10),  # Connection pooling
-    headers={"X-Custom-Header": "value"}  # Custom headers
-)
-```
-
-### Request Options
-
-```python
-# Compression options for large payloads
-request = Chronos2ForecastRequest(
-    x=data,
-    horizon=24,
-    compression="zstd"  # Options: "zstd", "lz4", None (default: "zstd")
-)
-
-# Model version pinning
-request = FlowStateForecastRequest(
-    x=data,
-    horizon=24,
-    model_version="1.2.3"  # Pin to specific version (default: "latest")
-)
-```
-
-## Context Managers
-
-Use context managers for automatic resource cleanup:
-
-```python
-# Sync context manager
-with ForecastClient() as client:
-    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.5, 0.9])
-    response = client.forecast(request)
-    print(response.quantiles)
-# Client automatically closed
-
-# Async context manager
-async with ForecastClient() as client:
-    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.9])
-    response = await client.forecast_async(request)
-    print(response.quantiles)
-# Client automatically closed
-```
-
 ## Examples
 
 See the `examples/` directory for complete Jupyter notebook examples:
 
-- **`flowstate_simple_example.ipynb`** - Point forecasting with FlowState on AirPassengers dataset
-- **`chronos2_probabilistic.ipynb`** - Probabilistic forecasting with quantiles (coming soon)
-- **`batch_processing.ipynb`** - Efficient batch processing patterns (coming soon)
+- **`model_comparison_simple.ipynb`** - Point forecasting with FlowState on AirPassengers dataset
 
 ## Requirements
 
@@ -562,9 +492,7 @@ See the `examples/` directory for complete Jupyter notebook examples:
 
 ## Support
 
-- **Documentation**: [docs.faim.example.com](https://docs.faim.example.com)
-- **Issues**: [GitHub Issues](https://github.com/your-org/faim-sdk/issues)
-- **Email**: support@faim.example.com
+- **Email**: support@faim.it.com
 
 ## License
 
@@ -579,6 +507,6 @@ If you use FAIM in your research, please cite:
   title = {FAIM SDK: Foundation AI Models for Time Series Forecasting},
   author = {FAIM Team},
   year = {2024},
-  url = {https://github.com/your-org/faim-sdk}
+  url = {https://github.com/S-FM/faim-python-client}
 }
 ```
