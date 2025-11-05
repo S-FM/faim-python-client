@@ -23,18 +23,25 @@ Production-ready Python SDK for FAIM (Foundation AI Models) - a high-performance
 pip install faim-sdk
 ```
 
+## Authentication
+
+Get your free API key at **[https://faim.it.com/](https://faim.it.com/)**
+
+```python
+from faim_sdk import ForecastClient
+
+# Initialize client with your API key
+client = ForecastClient(api_key="your-api-key")
+```
+
 ## Quick Start
 
 ```python
 import numpy as np
 from faim_sdk import ForecastClient, Chronos2ForecastRequest
 
-# Initialize client with your API endpoint
-client = ForecastClient(
-    base_url="https://api.faim.example.com",
-    api_key="your-api-key",  # Optional: for authenticated endpoints
-    timeout=120.0
-)
+# Initialize client
+client = ForecastClient(api_key="your-api-key")
 
 # Prepare your time-series data
 # Shape: (batch_size, sequence_length, features)
@@ -52,15 +59,69 @@ request = Chronos2ForecastRequest(
 response = client.forecast(request)
 
 # Access predictions
-print(response.quantiles.shape)  # (32, 24, 3)
+print(response.quantiles.shape)  # (32, 24, 3, 1)
 print(response.metadata)  # Model version, inference time, etc.
+```
+
+## Input/Output Format
+
+### Input Data Format
+
+**All models require 3D input arrays:**
+
+```python
+# Shape: (batch_size, sequence_length, features)
+x = np.array([
+    [[1.0], [2.0], [3.0]],  # Series 1
+    [[4.0], [5.0], [6.0]]   # Series 2
+])  # Shape: (2, 3, 1)
+```
+
+- **batch_size**: Number of independent time series
+- **sequence_length**: Historical data points (context window)
+- **features**: Number of variables per time step (use 1 for univariate)
+
+**Important**: 2D input will raise a validation error. Always provide 3D arrays.
+
+### Output Data Format
+
+**Point Forecasts** (3D):
+```python
+response.point  # Shape: (batch_size, horizon, features)
+```
+
+**Quantile Forecasts** (4D):
+```python
+response.quantiles  # Shape: (batch_size, horizon, num_quantiles, features)
+# Example: (32, 24, 5, 1) = 32 series, 24 steps ahead, 5 quantiles, 1 feature
+```
+
+### Univariate vs Multivariate
+
+- **Chronos2**: ✅ Supports multivariate forecasting (multiple features)
+- **FlowState**: ⚠️ Univariate only - automatically transforms multivariate input
+- **TiRex**: ⚠️ Univariate only - automatically transforms multivariate input
+
+When you provide multivariate input (features > 1) to FlowState or TiRex, the SDK automatically:
+1. Issues a warning
+2. Forecasts each feature independently
+3. Reshapes the output back to your original structure
+
+```python
+# Multivariate input to FlowState
+data = np.random.randn(2, 100, 3)  # 2 series, 3 features
+request = FlowStateForecastRequest(x=data, horizon=24, prediction_type="mean")
+
+# Warning: "FlowState model only supports univariate forecasting..."
+response = client.forecast(request)
+
+# Output is automatically reshaped
+print(response.point.shape)  # (2, 24, 3) - original structure preserved
 ```
 
 ## Available Models
 
 ### FlowState
-
-Optimized for **deterministic point forecasts** with optional scaling and normalization.
 
 ```python
 from faim_sdk import FlowStateForecastRequest
@@ -70,7 +131,7 @@ request = FlowStateForecastRequest(
     horizon=24,
     model_version="latest",
     output_type="point",
-    scale_factor=1.0,  # Optional: normalization factor
+    scale_factor=1.0,  # Optional: normalization factor, for details check: https://huggingface.co/ibm-granite/granite-timeseries-flowstate-r1
     prediction_type="mean"  # Options: "mean", "median"
 )
 
@@ -79,8 +140,6 @@ print(response.point.shape)  # (batch_size, 24, features)
 ```
 
 ### Chronos 2.0
-
-Amazon's **large language model for time series** - ideal for probabilistic forecasting with quantiles.
 
 ```python
 from faim_sdk import Chronos2ForecastRequest
@@ -98,8 +157,6 @@ print(response.quantiles.shape)  # (batch_size, 24, 5)
 ```
 
 ### TiRex
-
-**Transformer-based forecasting** model for efficient and accurate predictions.
 
 ```python
 from faim_sdk import TiRexForecastRequest
@@ -253,7 +310,7 @@ from faim_sdk import ForecastClient, Chronos2ForecastRequest
 from faim_sdk.eval import mse, mase, crps_from_quantiles, plot_forecast
 
 # Initialize client
-client = ForecastClient(base_url="https://api.faim.example.com")
+client = ForecastClient()
 
 # Prepare data splits
 train_data = np.random.randn(32, 100, 1)
@@ -378,7 +435,6 @@ from faim_sdk import ForecastClient, Chronos2ForecastRequest
 
 async def forecast_multiple_series():
     client = ForecastClient(
-        base_url="https://api.faim.example.com",
         api_key="your-api-key"
     )
 
@@ -412,14 +468,12 @@ from faim_sdk import ForecastClient
 
 # Basic configuration
 client = ForecastClient(
-    base_url="https://api.faim.example.com",
     timeout=120.0,  # Request timeout in seconds (default: 120)
     verify_ssl=True,  # SSL certificate verification (default: True)
 )
 
 # With API key authentication
 client = ForecastClient(
-    base_url="https://api.faim.example.com",
     api_key="your-secret-api-key",
     timeout=120.0
 )
@@ -428,7 +482,6 @@ client = ForecastClient(
 import httpx
 
 client = ForecastClient(
-    base_url="https://api.faim.example.com",
     api_key="your-api-key",
     timeout=120.0,
     limits=httpx.Limits(max_connections=10),  # Connection pooling
@@ -460,14 +513,14 @@ Use context managers for automatic resource cleanup:
 
 ```python
 # Sync context manager
-with ForecastClient(base_url="https://api.faim.example.com") as client:
+with ForecastClient() as client:
     request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.5, 0.9])
     response = client.forecast(request)
     print(response.quantiles)
 # Client automatically closed
 
 # Async context manager
-async with ForecastClient(base_url="https://api.faim.example.com") as client:
+async with ForecastClient() as client:
     request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.9])
     response = await client.forecast_async(request)
     print(response.quantiles)

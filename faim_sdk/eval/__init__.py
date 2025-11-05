@@ -14,7 +14,7 @@ Quick Start - Metrics:
     >>> import numpy as np
     >>>
     >>> # Generate forecast
-    >>> client = ForecastClient(base_url="https://api.example.com")
+    >>> client = ForecastClient()
     >>> request = Chronos2ForecastRequest(
     ...     x=train_data,  # (32, 100, 1)
     ...     horizon=24,
@@ -49,6 +49,7 @@ Quick Start - Visualization:
 
 Available Metrics:
     - mse: Mean Squared Error (point forecasts)
+    - mae: Mean Absolute Error (point forecasts)
     - mase: Mean Absolute Scaled Error (scale-independent)
     - crps_from_quantiles: Continuous Ranked Probability Score (probabilistic)
 
@@ -63,12 +64,13 @@ Installation:
         pip install matplotlib
 """
 
-from .metrics import crps_from_quantiles, mase, mse
+from .metrics import crps_from_quantiles, mae, mase, mse
 from .visualization import plot_forecast
 
 __all__ = [
     # Metrics
     "mse",
+    "mae",
     "mase",
     "crps_from_quantiles",
     # Visualization

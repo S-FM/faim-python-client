@@ -14,7 +14,7 @@ Typical Usage:
     >>> import numpy as np
     >>>
     >>> # Generate forecast
-    >>> client = ForecastClient(base_url="https://api.example.com")
+    >>> client = ForecastClient()
     >>> request = Chronos2ForecastRequest(
     ...     x=train_data,  # shape: (32, 100, 1)
     ...     horizon=24,
@@ -147,6 +147,99 @@ def mse(
     elif reduction == "none":
         # Average over horizon and features, keep batch dimension
         return np.mean(squared_errors, axis=(1, 2))
+    else:
+        raise ValueError(f"reduction must be 'mean' or 'none', got '{reduction}'")
+
+
+def mae(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    reduction: ReductionType = "mean",
+) -> float | np.ndarray:
+    """Calculate Mean Absolute Error between true and predicted values.
+
+    MAE measures the average absolute difference between predictions and ground truth.
+    Lower values indicate better forecast accuracy. Unlike MSE, MAE is less sensitive
+    to outliers and maintains the same units as the original data.
+
+    Mathematical Formula:
+        MAE = (1/n) * Σ|y_true - y_pred|
+
+    where n is the total number of predictions (batch_size × horizon × features).
+
+    Args:
+        y_true: Ground truth values. Shape: (batch_size, horizon, features).
+        y_pred: Predicted values. Shape: (batch_size, horizon, features).
+        reduction: How to aggregate results across the batch dimension.
+            - 'mean': Return single scalar averaged across all dimensions (default)
+            - 'none': Return per-sample metrics with shape (batch_size,)
+
+    Returns:
+        MAE value(s). Returns float if reduction='mean', otherwise array of shape
+        (batch_size,) containing MAE for each sample in the batch.
+
+    Raises:
+        TypeError: If inputs are not numpy arrays.
+        ValueError: If inputs have different shapes, wrong number of dimensions,
+            or are empty.
+
+    Examples:
+        >>> import numpy as np
+        >>> from faim_sdk.eval import mae
+        >>>
+        >>> # Single feature, batch of 4 samples
+        >>> y_true = np.array([[[1.0], [2.0], [3.0]],
+        ...                     [[4.0], [5.0], [6.0]]])  # (2, 3, 1)
+        >>> y_pred = np.array([[[1.1], [2.1], [3.1]],
+        ...                     [[4.2], [5.2], [6.2]]])  # (2, 3, 1)
+        >>>
+        >>> # Overall MAE
+        >>> mae(y_true, y_pred, reduction='mean')
+        0.15
+        >>>
+        >>> # Per-sample MAE
+        >>> mae(y_true, y_pred, reduction='none')
+        array([0.1, 0.2])
+
+    Notes:
+        - MAE is less sensitive to outliers compared to MSE
+        - MAE has the same units as the original data
+        - MAE is always non-negative (0 = perfect forecast)
+        - For scale-independent evaluation, consider using MASE instead
+    """
+    # Type validation
+    if not isinstance(y_true, np.ndarray):
+        raise TypeError(f"y_true must be numpy.ndarray, got {type(y_true).__name__}")
+    if not isinstance(y_pred, np.ndarray):
+        raise TypeError(f"y_pred must be numpy.ndarray, got {type(y_pred).__name__}")
+
+    # Shape validation
+    if y_true.ndim != 3:
+        raise ValueError(
+            f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}"
+        )
+    if y_pred.ndim != 3:
+        raise ValueError(
+            f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}"
+        )
+    if y_true.shape != y_pred.shape:
+        raise ValueError(
+            f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}"
+        )
+
+    # Empty validation
+    if y_true.size == 0:
+        raise ValueError("y_true cannot be empty")
+
+    # Calculate absolute errors
+    absolute_errors = np.abs(y_true - y_pred)
+
+    # Apply reduction
+    if reduction == "mean":
+        return float(np.mean(absolute_errors))
+    elif reduction == "none":
+        # Average over horizon and features, keep batch dimension
+        return np.mean(absolute_errors, axis=(1, 2))
     else:
         raise ValueError(f"reduction must be 'mean' or 'none', got '{reduction}'")
 

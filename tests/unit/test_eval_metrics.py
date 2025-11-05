@@ -323,7 +323,6 @@ class TestCRPS:
     def test_crps_shape_mismatch_error(self):
         """Test CRPS raises error for mismatched shapes."""
         y_true = np.array([[[5.0]]])
-        quantile_preds = np.array([[[4.0, 5.0]]])  # Wrong horizon
         quantile_levels = [0.1, 0.5]
 
         with pytest.raises(ValueError, match="Batch size mismatch"):

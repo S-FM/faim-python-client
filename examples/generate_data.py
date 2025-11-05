@@ -5,8 +5,8 @@ This module provides functions to generate synthetic time series data with clear
 for testing and demonstrating forecasting capabilities.
 """
 
+
 import numpy as np
-from typing import Tuple
 
 
 def generate_linear_trend_series(
@@ -243,13 +243,13 @@ if __name__ == "__main__":
     # Test linear trend series
     linear_data = generate_linear_trend_series(batch_size=5, context_length=100, seed=42)
     print(f"Linear trend series shape: {linear_data.shape}")
-    print(f"  Expected: (5, 100, 1)")
+    print("  Expected: (5, 100, 1)")
     print(f"  Min: {linear_data.min():.2f}, Max: {linear_data.max():.2f}, Mean: {linear_data.mean():.2f}\n")
 
     # Test correlated multi-series
     multi_data = generate_correlated_multi_series(batch_size=3, context_length=100, seed=42)
     print(f"Correlated multi-series shape: {multi_data.shape}")
-    print(f"  Expected: (3, 100, 2)")
+    print("  Expected: (3, 100, 2)")
     # Calculate correlation between the two series
     corr = np.corrcoef(multi_data[0, :, 0], multi_data[0, :, 1])[0, 1]
     print(f"  Correlation between series: {corr:.2f}\n")
@@ -257,7 +257,7 @@ if __name__ == "__main__":
     # Test heavy payload
     heavy_data = generate_heavy_payload(batch_size=100, context_length=2048, seed=42)
     print(f"Heavy payload shape: {heavy_data.shape}")
-    print(f"  Expected: (100, 2048, 1)")
+    print("  Expected: (100, 2048, 1)")
     print(f"  Memory size: {heavy_data.nbytes / 1024 / 1024:.2f} MB\n")
 
     # Generate full test suite

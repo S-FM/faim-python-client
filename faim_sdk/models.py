@@ -226,6 +226,10 @@ class FlowStateForecastRequest(ForecastRequest):
                     raise ValueError(
                         f"prediction_type='{self.prediction_type}' requires output_type='point', got '{self.output_type}'"
                     )
+        elif self.output_type == "quantiles":
+            self.prediction_type = "quantile"
+        else:
+            self.prediction_type = "median"
 
         # Validate output_type requires corresponding prediction_type
         if self.output_type == "quantiles" and self.prediction_type != "quantile":

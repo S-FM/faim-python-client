@@ -316,6 +316,7 @@ class TestPlotForecast:
 
         # Force reload of visualization module
         import importlib
+
         import faim_sdk.eval
         importlib.reload(faim_sdk.eval.visualization)
 
@@ -362,7 +363,6 @@ class TestPlotForecast:
         fig, ax = plot_forecast(train_data, forecast)
 
         # Check for vertical lines (boundary marker)
-        vertical_lines = [line for line in ax.lines if line.get_linestyle() == '-']
         # Should have at least one vertical line for the boundary
         # (Plus the actual data lines)
         assert len(ax.lines) >= 2

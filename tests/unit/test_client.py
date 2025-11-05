@@ -3,13 +3,12 @@
 Tests ForecastClient initialization, sync/async methods, and error handling.
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import httpx
 import numpy as np
 import pytest
 
-from faim_client.models import ModelName
 from faim_client.models.error_code import ErrorCode
 from faim_client.models.error_response import ErrorResponse
 from faim_sdk.client import ForecastClient
@@ -36,20 +35,19 @@ class TestForecastClientInitialization:
 
     def test_initialization_minimal(self):
         """Test initialization with minimal parameters."""
-        client = ForecastClient(base_url="https://api.example.com")
+        client = ForecastClient()
 
-        assert client.base_url == "https://api.example.com"
+        assert client.base_url == "https://api.faim.it.com"
         assert client.timeout == 120.0
         assert client._client is not None
 
     def test_initialization_with_api_key(self):
         """Test initialization with API key."""
         client = ForecastClient(
-            base_url="https://api.example.com",
             api_key="test-key-123",
         )
 
-        assert client.base_url == "https://api.example.com"
+        assert client.base_url == "https://api.faim.it.com"
 
     def test_initialization_with_timeout(self):
         """Test initialization with custom timeout."""
@@ -510,7 +508,7 @@ class TestForecastClientClose:
 
     def test_context_manager_closes_client(self):
         """Test that context manager closes client on exit."""
-        with ForecastClient(base_url="https://api.example.com") as client:
+        with ForecastClient(base_url="https://api.example.com"):
             pass
 
         # Client should be closed after context exits
@@ -519,7 +517,7 @@ class TestForecastClientClose:
     @pytest.mark.asyncio
     async def test_async_context_manager_closes_client(self):
         """Test that async context manager closes client on exit."""
-        async with ForecastClient(base_url="https://api.example.com") as client:
+        async with ForecastClient(base_url="https://api.example.com"):
             pass
 
         # Client should be closed after context exits
@@ -791,8 +789,6 @@ class TestUnivariateTransformation:
         """Test that 2D input raises validation error."""
         # Setup: 2D input (10, 3) - not allowed
         data = np.random.rand(10, 3).astype(np.float32)
-
-        client = ForecastClient(base_url="https://api.example.com")
 
         # Should raise error during request validation
         with pytest.raises(ValueError, match="x must be a 3D array"):

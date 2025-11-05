@@ -430,7 +430,7 @@ class TestNetworkError:
             "Connection failed",
             details={"host": "api.example.com", "port": 443},
         )
-        assert error.details["host"] == "api.example.com"
+        assert error.details["host"] == "https://api.faim.it.com"
 
 
 class TestTimeoutError:

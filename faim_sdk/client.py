@@ -16,7 +16,6 @@ import numpy as np
 from faim_client import AuthenticatedClient, Client
 from faim_client.api.forecast import forecast_v1_ts_forecast_model_name_model_version_post
 from faim_client.models import ModelName
-from faim_client.models.error_code import ErrorCode
 from faim_client.models.error_response import ErrorResponse
 from faim_client.types import File
 
@@ -219,7 +218,7 @@ class ForecastClient:
     Example:
         >>> from faim_sdk import ForecastClient, Chronos2ForecastRequest
         >>>
-        >>> client = ForecastClient(base_url="https://api.example.com")
+        >>> client = ForecastClient(base_url="https://api.faim.it.com")
         >>> request = Chronos2ForecastRequest(
         ...     x=data,
         ...     horizon=10,

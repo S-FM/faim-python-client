@@ -17,7 +17,7 @@ Basic usage:
     >>>
     >>> # Initialize client
     >>> client = ForecastClient(
-    ...     base_url="https://api.example.com",
+    ...     base_url="https://api.faim.it.com",
     ...     api_key="your-api-key"
     ... )
     >>>
@@ -142,4 +142,4 @@ __all__ = [
     "ConfigurationError",
 ]
 
-__version__ = "0.3.3"
+__version__ = "0.4.0"

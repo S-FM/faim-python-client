@@ -13,7 +13,7 @@ Typical Usage:
     >>> import numpy as np
     >>>
     >>> # Generate forecast
-    >>> client = ForecastClient(base_url="https://api.example.com")
+    >>> client = ForecastClient()
     >>> request = Chronos2ForecastRequest(
     ...     x=train_data,  # shape: (32, 100, 1)
     ...     horizon=24,
@@ -34,15 +34,15 @@ Available Functions:
     - plot_forecast: Plot training data, forecast, and optional test data
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
 # matplotlib is an optional dependency
 try:
     import matplotlib.pyplot as plt
-    from matplotlib.figure import Figure
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
@@ -143,7 +143,7 @@ def plot_forecast(
         >>> from faim_sdk import ForecastClient, Chronos2ForecastRequest
         >>> from faim_client.models import ModelName
         >>>
-        >>> client = ForecastClient(base_url="https://api.example.com")
+        >>> client = ForecastClient()
         >>> request = Chronos2ForecastRequest(
         ...     x=train_batch,  # (32, 100, 1)
         ...     horizon=24,
