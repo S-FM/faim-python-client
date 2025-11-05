@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "faim-sdk"
-version = "0.4.0"
+version = "0.4.2"
 description = "Python SDK for FAIM time-series forecasting with foundation AI models"
 authors = ["FAIM <info@faim.it.com>"]
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ packages = [
 include = ["CHANGELOG.md", "faim_client/py.typed", "faim_sdk/py.typed", "faim_sdk/eval/py.typed"]
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 numpy = ">=1.26.0,<2.0.0"
 pyarrow = ">=18.1.0"
 httpx = ">=0.23.0,<0.29.0"
