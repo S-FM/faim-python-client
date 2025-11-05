@@ -1,4 +1,4 @@
-w"""Unit tests for faim_sdk.eval.metrics module.
+"""Unit tests for faim_sdk.eval.metrics module.
 
 Tests for MSE, MASE, and CRPS metrics with comprehensive coverage
 of functionality, edge cases, and error handling.

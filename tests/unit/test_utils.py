@@ -454,3 +454,408 @@ class TestRoundTrip:
         assert np.allclose(arrays["point"], original_arrays["point"])
         assert np.allclose(arrays["quantiles"], original_arrays["quantiles"])
         assert metadata == original_metadata
+
+
+class TestMultipleInputOutputFormats:
+    """Tests for serialization/deserialization with various input/output format combinations."""
+
+    def test_single_sample_2d_input(self):
+        """Test serialization with single 2D sample (no batch dimension)."""
+        original = {"x": np.array([[1.0, 2.0], [3.0, 4.0]])}  # Shape: (seq_len, features)
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (2, 2)
+        assert np.array_equal(arrays["x"], original["x"])
+
+    def test_single_sample_3d_input(self):
+        """Test serialization with single 3D sample (batch_size=1)."""
+        original = {"x": np.random.rand(1, 100, 2).astype(np.float32)}  # Shape: (1, seq_len, features)
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (1, 100, 2)
+        assert np.allclose(arrays["x"], original["x"])
+
+    def test_batch_3d_input(self):
+        """Test serialization with batched 3D input."""
+        original = {"x": np.random.rand(32, 100, 1).astype(np.float32)}  # Shape: (batch, seq_len, features)
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (32, 100, 1)
+        assert np.allclose(arrays["x"], original["x"])
+
+    def test_multivariate_input(self):
+        """Test serialization with multivariate time series (multiple features)."""
+        original = {"x": np.random.rand(16, 80, 5).astype(np.float32)}  # 5 features
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (16, 80, 5)
+        assert np.allclose(arrays["x"], original["x"])
+
+    def test_point_output_format(self):
+        """Test serialization of point prediction output."""
+        original = {"point": np.random.rand(32, 24, 1).astype(np.float32)}
+        metadata = {"output_type": "point"}
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert "point" in arrays
+        assert arrays["point"].shape == (32, 24, 1)
+        assert meta["output_type"] == "point"
+
+    def test_quantiles_output_format(self):
+        """Test serialization of quantile prediction output."""
+        original = {"quantiles": np.random.rand(32, 24, 3).astype(np.float32)}
+        metadata = {"output_type": "quantiles", "quantiles": [0.1, 0.5, 0.9]}
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert "quantiles" in arrays
+        assert arrays["quantiles"].shape == (32, 24, 3)
+        assert meta["quantiles"] == [0.1, 0.5, 0.9]
+
+    def test_samples_output_format(self):
+        """Test serialization of sample prediction output."""
+        original = {"samples": np.random.rand(32, 24, 100).astype(np.float32)}
+        metadata = {"output_type": "samples", "num_samples": 100}
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert "samples" in arrays
+        assert arrays["samples"].shape == (32, 24, 100)
+        assert meta["num_samples"] == 100
+
+    def test_multiple_quantile_levels(self):
+        """Test serialization with many quantile levels."""
+        num_quantiles = 9
+        original = {"quantiles": np.random.rand(16, 12, num_quantiles).astype(np.float32)}
+        metadata = {
+            "output_type": "quantiles",
+            "quantiles": [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.975, 0.99],
+        }
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert arrays["quantiles"].shape == (16, 12, 9)
+        assert len(meta["quantiles"]) == 9
+
+    def test_mixed_output_point_and_quantiles(self):
+        """Test serialization with both point and quantile outputs (same total size)."""
+        # Both arrays must have same total elements for Arrow batch
+        original = {
+            "point": np.random.rand(32, 24, 1).astype(np.float32),  # 768 elements
+            "quantiles": np.random.rand(32, 8, 3).astype(np.float32),  # 768 elements
+        }
+        metadata = {"output_type": "both", "quantiles": [0.1, 0.5, 0.9]}
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert "point" in arrays
+        assert "quantiles" in arrays
+        assert arrays["point"].shape == (32, 24, 1)
+        assert arrays["quantiles"].shape == (32, 8, 3)
+
+    def test_request_format_input_only(self):
+        """Test serialization of request (input only)."""
+        original = {"x": np.random.rand(32, 100, 1).astype(np.float32)}
+        metadata = {"horizon": 24}
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert "x" in arrays
+        assert arrays["x"].shape == (32, 100, 1)
+        assert meta["horizon"] == 24
+
+    def test_response_format_output_only(self):
+        """Test serialization of response (output only)."""
+        original = {"point": np.random.rand(32, 24, 1).astype(np.float32)}
+        metadata = {"model_name": "chronos2"}
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert "point" in arrays
+        assert arrays["point"].shape == (32, 24, 1)
+
+    def test_very_small_batch_input(self):
+        """Test serialization with batch_size=1 (request)."""
+        original = {"x": np.random.rand(1, 50, 1).astype(np.float32)}
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (1, 50, 1)
+
+    def test_very_small_batch_output(self):
+        """Test serialization with batch_size=1 (response)."""
+        original = {"point": np.random.rand(1, 10, 1).astype(np.float32)}
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].shape == (1, 10, 1)
+
+    def test_large_batch_input(self):
+        """Test serialization with large batch size (request)."""
+        batch_size = 256
+        original = {"x": np.random.rand(batch_size, 100, 1).astype(np.float32)}
+        serialized = serialize_to_arrow(original, compression="zstd")
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (batch_size, 100, 1)
+
+    def test_large_batch_output(self):
+        """Test serialization with large batch size (response)."""
+        batch_size = 256
+        original = {"point": np.random.rand(batch_size, 24, 1).astype(np.float32)}
+        serialized = serialize_to_arrow(original, compression="zstd")
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].shape == (batch_size, 24, 1)
+
+    def test_short_sequence(self):
+        """Test serialization with short sequence length."""
+        original = {"x": np.random.rand(32, 10, 1).astype(np.float32)}  # seq_len=10
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (32, 10, 1)
+
+    def test_long_sequence(self):
+        """Test serialization with long sequence length."""
+        original = {"x": np.random.rand(8, 1000, 1).astype(np.float32)}  # seq_len=1000
+        serialized = serialize_to_arrow(original, compression="zstd")
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (8, 1000, 1)
+
+    def test_univariate_series_input(self):
+        """Test serialization with univariate time series input (features=1)."""
+        original = {"x": np.random.rand(32, 100, 1).astype(np.float32)}
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape[2] == 1
+
+    def test_univariate_series_output(self):
+        """Test serialization with univariate time series output (features=1)."""
+        original = {"point": np.random.rand(32, 24, 1).astype(np.float32)}
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].shape[2] == 1
+
+    def test_multivariate_series_input(self):
+        """Test serialization with multivariate time series input (features>1)."""
+        num_features = 10
+        original = {"x": np.random.rand(32, 100, num_features).astype(np.float32)}
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (32, 100, num_features)
+
+    def test_multivariate_series_output(self):
+        """Test serialization with multivariate time series output (features>1)."""
+        num_features = 10
+        original = {"point": np.random.rand(32, 24, num_features).astype(np.float32)}
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].shape == (32, 24, num_features)
+
+    def test_chronos2_request_format(self):
+        """Test serialization matching Chronos2 request format."""
+        original_arrays = {"x": np.random.randn(32, 100, 1).astype(np.float32)}
+        original_metadata = {
+            "horizon": 24,
+            "model_version": "1",
+            "output_type": "quantiles",
+            "quantiles": [0.1, 0.5, 0.9],
+        }
+        serialized = serialize_to_arrow(original_arrays, original_metadata, compression="zstd")
+        arrays, metadata = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (32, 100, 1)
+        assert metadata["horizon"] == 24
+        assert metadata["output_type"] == "quantiles"
+        assert metadata["quantiles"] == [0.1, 0.5, 0.9]
+
+    def test_chronos2_response_format(self):
+        """Test serialization matching Chronos2 response format with quantiles."""
+        original_arrays = {"quantiles": np.random.randn(32, 24, 3).astype(np.float32)}
+        original_metadata = {
+            "model_name": "chronos2",
+            "model_version": "1.0",
+            "quantiles": [0.1, 0.5, 0.9],
+            "inference_time_ms": 123,
+        }
+        serialized = serialize_to_arrow(original_arrays, original_metadata, compression="zstd")
+        arrays, metadata = deserialize_from_arrow(serialized)
+
+        assert arrays["quantiles"].shape == (32, 24, 3)
+        assert metadata["model_name"] == "chronos2"
+        assert metadata["quantiles"] == [0.1, 0.5, 0.9]
+
+    def test_flowstate_request_format(self):
+        """Test serialization matching FlowState request format."""
+        original_arrays = {"x": np.random.randn(16, 80, 1).astype(np.float32)}
+        original_metadata = {
+            "horizon": 20,
+            "model_version": "1",
+            "output_type": "point",
+            "scale_factor": 100.0,
+            "prediction_type": "mean",
+        }
+        serialized = serialize_to_arrow(original_arrays, original_metadata, compression="lz4")
+        arrays, metadata = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (16, 80, 1)
+        assert metadata["scale_factor"] == 100.0
+        assert metadata["prediction_type"] == "mean"
+
+    def test_flowstate_response_format(self):
+        """Test serialization matching FlowState response format."""
+        original_arrays = {"point": np.random.randn(16, 20, 1).astype(np.float32)}
+        original_metadata = {
+            "model_name": "flowstate",
+            "model_version": "1.0",
+            "inference_time_ms": 45,
+        }
+        serialized = serialize_to_arrow(original_arrays, original_metadata)
+        arrays, metadata = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].shape == (16, 20, 1)
+        assert metadata["model_name"] == "flowstate"
+
+    def test_tirex_request_format(self):
+        """Test serialization matching TiRex request format."""
+        original_arrays = {"x": np.random.randn(32, 100, 1).astype(np.float32)}
+        original_metadata = {
+            "horizon": 24,
+            "model_version": "1",
+            "output_type": "point",
+        }
+        serialized = serialize_to_arrow(original_arrays, original_metadata)
+        arrays, metadata = deserialize_from_arrow(serialized)
+
+        assert arrays["x"].shape == (32, 100, 1)
+        assert metadata["output_type"] == "point"
+
+    def test_tirex_response_format(self):
+        """Test serialization matching TiRex response format."""
+        original_arrays = {"point": np.random.randn(32, 24, 1).astype(np.float32)}
+        original_metadata = {
+            "model_name": "tirex",
+            "model_version": "1.0",
+        }
+        serialized = serialize_to_arrow(original_arrays, original_metadata)
+        arrays, metadata = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].shape == (32, 24, 1)
+        assert metadata["model_name"] == "tirex"
+
+    def test_different_horizons(self):
+        """Test serialization with different forecast horizons (output only)."""
+        horizons = [1, 5, 10, 24, 48, 100]
+
+        for horizon in horizons:
+            original = {"point": np.random.rand(8, horizon, 1).astype(np.float32)}
+            metadata = {"horizon": horizon}
+            serialized = serialize_to_arrow(original, metadata)
+            arrays, meta = deserialize_from_arrow(serialized)
+
+            assert arrays["point"].shape[1] == horizon
+            assert meta["horizon"] == horizon
+
+    def test_different_compressions_same_data(self):
+        """Test that different compressions produce same deserialized data."""
+        original = {"x": np.random.rand(32, 100, 1).astype(np.float32)}
+
+        # Serialize with different compressions
+        serialized_zstd = serialize_to_arrow(original, compression="zstd")
+        serialized_lz4 = serialize_to_arrow(original, compression="lz4")
+        serialized_none = serialize_to_arrow(original, compression=None)
+
+        # Deserialize all
+        arrays_zstd, _ = deserialize_from_arrow(serialized_zstd)
+        arrays_lz4, _ = deserialize_from_arrow(serialized_lz4)
+        arrays_none, _ = deserialize_from_arrow(serialized_none)
+
+        # All should produce same data
+        assert np.allclose(arrays_zstd["x"], original["x"])
+        assert np.allclose(arrays_lz4["x"], original["x"])
+        assert np.allclose(arrays_none["x"], original["x"])
+        assert np.allclose(arrays_zstd["x"], arrays_lz4["x"])
+        assert np.allclose(arrays_zstd["x"], arrays_none["x"])
+
+    def test_float32_vs_float64(self):
+        """Test serialization with different float precisions."""
+        original_f32 = {"x_f32": np.random.rand(16, 50, 1).astype(np.float32)}
+        original_f64 = {"x_f64": np.random.rand(16, 50, 1).astype(np.float64)}
+
+        # Serialize both
+        serialized_f32 = serialize_to_arrow(original_f32)
+        serialized_f64 = serialize_to_arrow(original_f64)
+
+        # Deserialize and check dtypes preserved
+        arrays_f32, _ = deserialize_from_arrow(serialized_f32)
+        arrays_f64, _ = deserialize_from_arrow(serialized_f64)
+
+        assert arrays_f32["x_f32"].dtype == np.float32
+        assert arrays_f64["x_f64"].dtype == np.float64
+
+    def test_mixed_precision_response(self):
+        """Test serialization with mixed precision arrays in response (same total size)."""
+        # All arrays must have same total elements: 16 * 10 * 3 = 480 elements
+        original = {
+            "point": np.random.rand(16, 10, 3).astype(np.float64),  # 480 elements
+            "quantiles": np.random.rand(16, 10, 3).astype(np.float32),  # 480 elements
+        }
+        serialized = serialize_to_arrow(original)
+        arrays, _ = deserialize_from_arrow(serialized)
+
+        assert arrays["point"].dtype == np.float64
+        assert arrays["quantiles"].dtype == np.float32
+
+    def test_multiple_output_types_response(self):
+        """Test serialization of multiple output types (same total size)."""
+        # All 800 elements: 32 * 5 * 5 = 800
+        original = {
+            "point": np.random.rand(32, 5, 5).astype(np.float32),  # 800 elements
+            "quantiles": np.random.rand(20, 8, 5).astype(np.float32),  # 800 elements
+            "samples": np.random.rand(16, 10, 5).astype(np.float32),  # 800 elements
+        }
+        serialized = serialize_to_arrow(original, metadata={})
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert len(arrays) == 3
+        assert meta == {}
+        for key in original:
+            assert np.allclose(arrays[key], original[key])
+
+    def test_complex_metadata_with_simple_data(self):
+        """Test serialization of simple data with complex metadata."""
+        original = {"x": np.array([[1.0, 2.0]])}
+        metadata = {
+            "horizon": 10,
+            "model_version": "2.1.3",
+            "output_type": "quantiles",
+            "quantiles": [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99],
+            "config": {
+                "temperature": 0.8,
+                "top_p": 0.9,
+                "max_tokens": 1000,
+            },
+            "preprocessing": {
+                "normalize": True,
+                "scale_factor": 1.5,
+                "remove_outliers": False,
+            },
+        }
+        serialized = serialize_to_arrow(original, metadata)
+        arrays, meta = deserialize_from_arrow(serialized)
+
+        assert np.array_equal(arrays["x"], original["x"])
+        assert meta == metadata
+        assert meta["config"]["temperature"] == 0.8
+        assert meta["preprocessing"]["normalize"] is True

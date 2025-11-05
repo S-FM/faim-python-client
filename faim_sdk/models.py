@@ -28,7 +28,7 @@ class ForecastRequest:
     _model_name: ClassVar[ModelName]
 
     x: np.ndarray
-    """Time series data. Shape: (batch_size, sequence_length, features) or (sequence_length, features)"""
+    """Time series data. Shape: (batch_size, sequence_length, features)"""
 
     horizon: int
     """Forecast horizon length (number of time steps to predict)"""
@@ -60,13 +60,20 @@ class ForecastRequest:
 
         Raises:
             TypeError: If x is not a numpy ndarray
-            ValueError: If x is empty or horizon is non-positive
+            ValueError: If x is empty, not 3D, or horizon is non-positive
         """
         if not isinstance(self.x, np.ndarray):
             raise TypeError(f"x must be numpy.ndarray, got {type(self.x).__name__}")
 
         if self.x.size == 0:
             raise ValueError("x cannot be empty")
+
+        # Ensure x is 3D: (batch_size, sequence_length, features)
+        if self.x.ndim != 3:
+            raise ValueError(
+                f"x must be a 3D array with shape (batch_size, sequence_length, features), "
+                f"got shape {self.x.shape} with {self.x.ndim} dimensions"
+            )
 
         if self.horizon <= 0:
             raise ValueError(f"horizon must be positive, got {self.horizon}")
@@ -165,7 +172,6 @@ class TiRexForecastRequest(ForecastRequest):
         """
         arrays, metadata = super().to_arrays_and_metadata()
 
-        # Add TiRex-specific metadata
         metadata["output_type"] = self.output_type
 
         return arrays, metadata
@@ -269,7 +275,7 @@ class ForecastResponse:
     """Point predictions. Shape: (batch_size, horizon, features)"""
 
     quantiles: np.ndarray | None = None
-    """Quantile predictions. Shape: (batch_size, horizon, num_quantiles)"""
+    """Quantile predictions. Shape: (batch_size, horizon, num_quantiles, features)"""
 
     samples: np.ndarray | None = None
     """Sample predictions. Shape: (batch_size, horizon, num_samples)"""

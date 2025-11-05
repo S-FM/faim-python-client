@@ -625,3 +625,228 @@ class TestForecastClientIntegration:
             assert response.point is not None
 
         assert mock_post.call_count == 3
+
+
+class TestUnivariateTransformation:
+    """Tests for univariate transformation of FlowState and TiRex models."""
+
+    @patch("httpx.Client.post")
+    def test_flowstate_multivariate_point_forecast(self, mock_post):
+        """Test FlowState with multivariate input transforms and reshapes correctly for point forecast."""
+        # Setup: multivariate input (2, 10, 3) - 2 series, 10 timesteps, 3 features
+        data = np.random.rand(2, 10, 3).astype(np.float32)
+
+        # Mock server response: (batch*features=6, horizon=5, features=1)
+        response_arrays = {"point": np.random.rand(6, 5, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = FlowStateForecastRequest(x=data, horizon=5, prediction_type="mean")
+
+        # Execute with warning capture
+        with pytest.warns(UserWarning, match="FlowState model only supports univariate forecasting"):
+            response = client.forecast(request)
+
+        # Verify output shape: should be reshaped to (2, 5, 3)
+        assert response.point is not None
+        assert response.point.shape == (2, 5, 3)
+
+    @patch("httpx.Client.post")
+    def test_tirex_multivariate_point_forecast(self, mock_post):
+        """Test TiRex with multivariate input transforms and reshapes correctly for point forecast."""
+        # Setup: multivariate input (3, 20, 2) - 3 series, 20 timesteps, 2 features
+        data = np.random.rand(3, 20, 2).astype(np.float32)
+
+        # Mock server response: (batch*features=6, horizon=10, features=1)
+        response_arrays = {"point": np.random.rand(6, 10, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = TiRexForecastRequest(x=data, horizon=10)
+
+        # Execute with warning capture
+        with pytest.warns(UserWarning, match="TiRex model only supports univariate forecasting"):
+            response = client.forecast(request)
+
+        # Verify output shape: should be reshaped to (3, 10, 2)
+        assert response.point is not None
+        assert response.point.shape == (3, 10, 2)
+
+    @patch("httpx.Client.post")
+    def test_flowstate_multivariate_quantile_forecast(self, mock_post):
+        """Test FlowState with multivariate input transforms and reshapes correctly for quantile forecast."""
+        # Setup: multivariate input (2, 15, 4) - 2 series, 15 timesteps, 4 features
+        data = np.random.rand(2, 15, 4).astype(np.float32)
+
+        # Mock server response: (batch*features=8, horizon=8, quantiles=5, features=1)
+        response_arrays = {"quantiles": np.random.rand(8, 8, 5, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = FlowStateForecastRequest(
+            x=data,
+            horizon=8,
+            prediction_type="quantile",
+            output_type="quantiles"
+        )
+
+        # Execute with warning capture
+        with pytest.warns(UserWarning, match="FlowState model only supports univariate forecasting"):
+            response = client.forecast(request)
+
+        # Verify output shape: should be reshaped to (2, 8, 5, 4)
+        assert response.quantiles is not None
+        assert response.quantiles.shape == (2, 8, 5, 4)
+
+    @patch("httpx.Client.post")
+    def test_tirex_multivariate_quantile_forecast(self, mock_post):
+        """Test TiRex with multivariate input transforms and reshapes correctly for quantile forecast."""
+        # Setup: multivariate input (1, 10, 3) - 1 series, 10 timesteps, 3 features
+        data = np.random.rand(1, 10, 3).astype(np.float32)
+
+        # Mock server response: (batch*features=3, horizon=5, quantiles=7, features=1)
+        response_arrays = {"quantiles": np.random.rand(3, 5, 7, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = TiRexForecastRequest(x=data, horizon=5, output_type="quantiles")
+
+        # Execute with warning capture
+        with pytest.warns(UserWarning, match="TiRex model only supports univariate forecasting"):
+            response = client.forecast(request)
+
+        # Verify output shape: should be reshaped to (1, 5, 7, 3)
+        assert response.quantiles is not None
+        assert response.quantiles.shape == (1, 5, 7, 3)
+
+    @patch("httpx.Client.post")
+    def test_chronos2_multivariate_not_transformed(self, mock_post):
+        """Test that Chronos2 with multivariate input is NOT transformed."""
+        # Setup: multivariate input (2, 10, 3) - Chronos2 supports multivariate
+        data = np.random.rand(2, 10, 3).astype(np.float32)
+
+        # Mock server response: should preserve multivariate shape (2, 5, 3)
+        response_arrays = {"point": np.random.rand(2, 5, 3).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = Chronos2ForecastRequest(x=data, horizon=5)
+
+        # Execute - should NOT issue warning
+        with pytest.warns(None) as warning_list:
+            response = client.forecast(request)
+
+        # Verify no univariate transformation warning was issued
+        univariate_warnings = [w for w in warning_list if "univariate forecasting" in str(w.message)]
+        assert len(univariate_warnings) == 0
+
+        # Verify output shape: should remain (2, 5, 3)
+        assert response.point is not None
+        assert response.point.shape == (2, 5, 3)
+
+    @patch("httpx.Client.post")
+    def test_flowstate_univariate_not_transformed(self, mock_post):
+        """Test that FlowState with univariate input (features=1) is NOT transformed."""
+        # Setup: univariate input (2, 10, 1) - already univariate
+        data = np.random.rand(2, 10, 1).astype(np.float32)
+
+        # Mock server response: (2, 5, 1)
+        response_arrays = {"point": np.random.rand(2, 5, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = FlowStateForecastRequest(x=data, horizon=5, prediction_type="mean")
+
+        # Execute - should NOT issue warning for univariate input
+        with pytest.warns(None) as warning_list:
+            response = client.forecast(request)
+
+        # Verify no univariate transformation warning was issued
+        univariate_warnings = [w for w in warning_list if "univariate forecasting" in str(w.message)]
+        assert len(univariate_warnings) == 0
+
+        # Verify output shape: should remain (2, 5, 1)
+        assert response.point is not None
+        assert response.point.shape == (2, 5, 1)
+
+    def test_2d_input_raises_error(self):
+        """Test that 2D input raises validation error."""
+        # Setup: 2D input (10, 3) - not allowed
+        data = np.random.rand(10, 3).astype(np.float32)
+
+        client = ForecastClient(base_url="https://api.example.com")
+
+        # Should raise error during request validation
+        with pytest.raises(ValueError, match="x must be a 3D array"):
+            FlowStateForecastRequest(x=data, horizon=5, prediction_type="mean")
+
+    @patch("httpx.Client.post")
+    @pytest.mark.asyncio
+    async def test_flowstate_multivariate_async(self, mock_post):
+        """Test async forecast with FlowState multivariate transformation."""
+        # Setup: multivariate input (2, 10, 3)
+        data = np.random.rand(2, 10, 3).astype(np.float32)
+
+        # Mock server response: (batch*features=6, horizon=5, features=1)
+        response_arrays = {"point": np.random.rand(6, 5, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = FlowStateForecastRequest(x=data, horizon=5, prediction_type="mean")
+
+        # Execute async with warning capture
+        with pytest.warns(UserWarning, match="FlowState model only supports univariate forecasting"):
+            response = await client.forecast_async(request)
+
+        # Verify output shape: should be reshaped to (2, 5, 3)
+        assert response.point is not None
+        assert response.point.shape == (2, 5, 3)
+
+    @patch("httpx.Client.post")
+    def test_warning_message_content(self, mock_post):
+        """Test that warning message contains correct information."""
+        # Setup: multivariate input with 5 features
+        data = np.random.rand(1, 10, 5).astype(np.float32)
+
+        # Mock server response
+        response_arrays = {"point": np.random.rand(5, 5, 1).astype(np.float32)}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = serialize_to_arrow(response_arrays, {})
+        mock_post.return_value = mock_response
+
+        client = ForecastClient(base_url="https://api.example.com")
+        request = FlowStateForecastRequest(x=data, horizon=5, prediction_type="mean")
+
+        # Capture warning
+        with pytest.warns(UserWarning) as warning_record:
+            client.forecast(request)
+
+        # Verify warning message
+        assert len(warning_record) == 1
+        warning_message = str(warning_record[0].message)
+        assert "FlowState" in warning_message
+        assert "5 features" in warning_message
+        assert "independently" in warning_message
+        assert "separate time series" in warning_message

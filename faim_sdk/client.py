@@ -7,8 +7,11 @@ and observability.
 import io
 import json
 import logging
+import warnings
+from copy import copy
 
 import httpx
+import numpy as np
 
 from faim_client import AuthenticatedClient, Client
 from faim_client.api.forecast import forecast_v1_ts_forecast_model_name_model_version_post
@@ -61,6 +64,148 @@ def _parse_error_response(response) -> ErrorResponse | None:
     return None
 
 
+def _needs_univariate_transformation(request: ForecastRequest) -> bool:
+    """Check if request requires univariate transformation.
+
+    FlowState and TiRex models only support univariate forecasting.
+    When they receive multivariate input (features > 1), the input
+    must be transformed to forecast each feature independently.
+
+    Args:
+        request: Forecast request to check
+
+    Returns:
+        True if transformation is needed, False otherwise
+    """
+    # Only FlowState and TiRex require transformation
+    if request.model_name not in (ModelName.FLOWSTATE, ModelName.TIREX):
+        return False
+
+    # Check if input is multivariate (features > 1)
+    num_features = request.x.shape[2]  # Shape is (batch, seq_len, features)
+    return num_features > 1
+
+
+def _prepare_univariate_request(request: ForecastRequest) -> tuple[ForecastRequest, tuple[int, int]]:
+    """Prepare request for univariate-only models with multivariate input.
+
+    Transforms input from (batch, seq_len, features) to (batch*features, seq_len, 1)
+    and issues a warning to the user that features will be forecast independently.
+
+    Args:
+        request: Original forecast request with multivariate input
+
+    Returns:
+        Tuple of (modified request, (original_batch_size, num_features))
+
+    Example:
+        Input shape:  (batch=2, seq_len=100, features=3)
+        Output shape: (batch=6, seq_len=100, features=1)
+        Mapping:
+            - Feature 0 of series 0 → new batch index 0
+            - Feature 1 of series 0 → new batch index 1
+            - Feature 2 of series 0 → new batch index 2
+            - Feature 0 of series 1 → new batch index 3
+            - Feature 1 of series 1 → new batch index 4
+            - Feature 2 of series 1 → new batch index 5
+    """
+    original_batch_size, seq_len, num_features = request.x.shape
+
+    # Issue user warning
+    warnings.warn(
+        f"{request.model_name.value.title()} model only supports univariate forecasting. "
+        f"Input with {num_features} features will be forecast independently. "
+        f"Each feature will be treated as a separate time series.",
+        UserWarning,
+        stacklevel=3,  # Point to the user's code, not this internal function
+    )
+
+    logger.info(
+        f"Transforming multivariate input for {request.model_name.value}: "
+        f"shape {request.x.shape} → ({original_batch_size * num_features}, {seq_len}, 1)"
+    )
+
+    # Reshape: (batch, seq_len, features) → (batch, features, seq_len) → (batch*features, seq_len) → (batch*features, seq_len, 1)
+    # We want to interleave features across the batch dimension
+    x_transposed = request.x.transpose(0, 2, 1)  # (batch, features, seq_len)
+    x_flattened = x_transposed.reshape(original_batch_size * num_features, seq_len)  # (batch*features, seq_len)
+    x_univariate = x_flattened[:, :, np.newaxis]  # (batch*features, seq_len, 1)
+
+    # Create modified request with reshaped x
+    # Use copy to avoid modifying the original request
+    modified_request = copy(request)
+    modified_request.x = x_univariate
+
+    return modified_request, (original_batch_size, num_features)
+
+
+def _reshape_univariate_response(
+    response: ForecastResponse,
+    original_batch_size: int,
+    num_features: int,
+) -> ForecastResponse:
+    """Reshape response from univariate transformation back to multivariate format.
+
+    Reverses the transformation done by _prepare_univariate_request() to restore
+    the original batch and feature dimensions.
+
+    Args:
+        response: Response from server with univariate format
+        original_batch_size: Original batch size before transformation
+        num_features: Number of features in original input
+
+    Returns:
+        Response with proper multivariate shape
+
+    Example:
+        Point forecast:
+            Input shape:  (batch*features=6, horizon=24, features=1)
+            Output shape: (batch=2, horizon=24, features=3)
+
+        Quantile forecast:
+            Input shape:  (batch*features=6, horizon=24, quantiles=5, features=1)
+            Output shape: (batch=2, horizon=24, quantiles=5, features=3)
+    """
+    modified_response = ForecastResponse(metadata=response.metadata)
+
+    # Reshape point predictions if present
+    if response.point is not None:
+        # Input: (batch*features, horizon, 1)
+        # Output: (batch, horizon, features)
+        batch_times_features, horizon, _ = response.point.shape
+
+        # Reshape to (batch, features, horizon, 1)
+        reshaped = response.point.reshape(original_batch_size, num_features, horizon, 1)
+        # Transpose to (batch, horizon, features, 1)
+        transposed = reshaped.transpose(0, 2, 1, 3)  # (batch, horizon, features, 1)
+        # Squeeze last dimension to get (batch, horizon, features)
+        modified_response.point = transposed.squeeze(-1)
+
+    # Reshape quantile predictions if present
+    if response.quantiles is not None:
+        # Input: (batch*features, horizon, quantiles, 1)
+        # Output: (batch, horizon, quantiles, features)
+        batch_times_features, horizon, num_quantiles, _ = response.quantiles.shape
+
+        # Reshape to (batch, features, horizon, quantiles, 1)
+        reshaped = response.quantiles.reshape(original_batch_size, num_features, horizon, num_quantiles, 1)
+        # Transpose to (batch, horizon, quantiles, features, 1)
+        transposed = reshaped.transpose(0, 2, 3, 1, 4)  # (batch, horizon, quantiles, features, 1)
+        # Squeeze last dimension to get (batch, horizon, quantiles, features)
+        modified_response.quantiles = transposed.squeeze(-1)
+
+    # Samples - keep as is for now (not common for FlowState/TiRex)
+    if response.samples is not None:
+        modified_response.samples = response.samples
+
+    logger.debug(
+        f"Reshaped univariate response: "
+        f"original_batch={original_batch_size}, features={num_features}"
+    )
+
+    return modified_response
+
+
 class ForecastClient:
     """High-level client for FAIM time-series forecasting.
 
@@ -86,8 +231,8 @@ class ForecastClient:
 
     def __init__(
         self,
-        base_url: str,
-        timeout: float = 120.0,
+        base_url: str = "https://api.faim.it.com",
+        timeout: float = 60.0,
         verify_ssl: bool = True,
         api_key: str | None = None,
         **httpx_kwargs,
@@ -96,7 +241,7 @@ class ForecastClient:
 
         Args:
             base_url: Base URL of FAIM inference API
-            timeout: Request timeout in seconds. Default: 120s
+            timeout: Request timeout in seconds. Default: 60s
             verify_ssl: Whether to verify SSL certificates. Default: True
             api_key: Optional API key for authentication. If provided, all requests
                      will include "Authorization: Bearer <api_key>" header. Default: None
@@ -173,6 +318,11 @@ class ForecastClient:
             f"Starting forecast: model={model}, version={request.model_version}, "
             f"x.shape={request.x.shape}, horizon={request.horizon}"
         )
+
+        # Check if univariate transformation is needed
+        transform_shape_info = None
+        if _needs_univariate_transformation(request):
+            request, transform_shape_info = _prepare_univariate_request(request)
 
         # Serialize request to Arrow format
         try:
@@ -313,6 +463,13 @@ class ForecastClient:
             arrays, metadata = deserialize_from_arrow(response_bytes)
             forecast_response = ForecastResponse.from_arrays_and_metadata(arrays, metadata)
 
+            # If univariate transformation was applied, reshape response back
+            if transform_shape_info is not None:
+                original_batch_size, num_features = transform_shape_info
+                forecast_response = _reshape_univariate_response(
+                    forecast_response, original_batch_size, num_features
+                )
+
             logger.info(f"Forecast successful: {forecast_response}")
             return forecast_response
 
@@ -347,6 +504,11 @@ class ForecastClient:
         """
         model = request.model_name
         logger.debug(f"Starting async forecast: model={model}, version={request.model_version}")
+
+        # Check if univariate transformation is needed
+        transform_shape_info = None
+        if _needs_univariate_transformation(request):
+            request, transform_shape_info = _prepare_univariate_request(request)
 
         # Serialize request
         try:
@@ -486,6 +648,13 @@ class ForecastClient:
 
             arrays, metadata = deserialize_from_arrow(response_bytes)
             forecast_response = ForecastResponse.from_arrays_and_metadata(arrays, metadata)
+
+            # If univariate transformation was applied, reshape response back
+            if transform_shape_info is not None:
+                original_batch_size, num_features = transform_shape_info
+                forecast_response = _reshape_univariate_response(
+                    forecast_response, original_batch_size, num_features
+                )
 
             logger.info(f"Async forecast successful: {forecast_response}")
             return forecast_response
