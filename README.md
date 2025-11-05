@@ -463,7 +463,7 @@ responses = asyncio.run(forecast_multiple_series())
 
 See the `examples/` directory for complete Jupyter notebook examples:
 
-- **`model_comparison_simple.ipynb`** - Point forecasting with FlowState on AirPassengers dataset
+- **`toy_example.ipynb`** - A toy example showing how to get started with FAIM and generate both point and probabilistic forecasts.
 
 ## Requirements
 
