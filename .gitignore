@@ -25,3 +25,4 @@ dmypy.json
 openapi.json
 pyproject.toml
 CLAUDE.md
+/poetry.lock

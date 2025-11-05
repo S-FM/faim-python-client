@@ -5,9 +5,11 @@ model-specific parameter classes.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import numpy as np
+
+from faim_client.models import ModelName
 
 # Type alias for output types
 OutputType = Literal["point", "quantiles", "samples"]
@@ -18,12 +20,15 @@ class ForecastRequest:
     """Base forecast request with common parameters.
 
     This is the base class for all model-specific forecast requests.
-    Use model-specific subclasses (ToToForecastRequest, FlowStateForecastRequest)
+    Use model-specific subclasses (FlowStateForecastRequest, Chronos2ForecastRequest, TiRexForecastRequest)
     for better type safety and IDE support.
     """
 
+    # Class variable to be overridden by subclasses
+    _model_name: ClassVar[ModelName]
+
     x: np.ndarray
-    """Time series data. Shape: (batch_size, sequence_length, features) or (sequence_length, features)"""
+    """Time series data. Shape: (batch_size, sequence_length, features)"""
 
     horizon: int
     """Forecast horizon length (number of time steps to predict)"""
@@ -34,13 +39,41 @@ class ForecastRequest:
     compression: str | None = "zstd"
     """Arrow compression algorithm. Options: 'zstd', 'lz4', None. Default: 'zstd'"""
 
+    @property
+    def model_name(self) -> ModelName:
+        """Get the model name for this request type.
+
+        Returns:
+            ModelName enum value indicating which model to use
+
+        Example:
+            >>> request = Chronos2ForecastRequest(x=data, horizon=10)
+            >>> print(request.model_name)  # ModelName.CHRONOS2
+        """
+        return self._model_name
+
     def __post_init__(self) -> None:
-        """Validate common parameters."""
+        """Validate common parameters.
+
+        Automatically called after dataclass initialization to ensure
+        all parameters meet requirements.
+
+        Raises:
+            TypeError: If x is not a numpy ndarray
+            ValueError: If x is empty, not 3D, or horizon is non-positive
+        """
         if not isinstance(self.x, np.ndarray):
             raise TypeError(f"x must be numpy.ndarray, got {type(self.x).__name__}")
 
         if self.x.size == 0:
             raise ValueError("x cannot be empty")
+
+        # Ensure x is 3D: (batch_size, sequence_length, features)
+        if self.x.ndim != 3:
+            raise ValueError(
+                f"x must be a 3D array with shape (batch_size, sequence_length, features), "
+                f"got shape {self.x.shape} with {self.x.ndim} dimensions"
+            )
 
         if self.horizon <= 0:
             raise ValueError(f"horizon must be positive, got {self.horizon}")
@@ -64,69 +97,82 @@ class ForecastRequest:
 
 
 @dataclass
-class ToToForecastRequest(ForecastRequest):
-    """Forecast request for ToTo model with probabilistic forecasting support.
+class Chronos2ForecastRequest(ForecastRequest):
+    """Forecast request for Chronos2 model.
 
-    ToTo supports multi-series forecasting with padding masks and
-    probabilistic predictions via sampling or quantiles.
+    Amazon Chronos 2.0 - Large language model for time series forecasting.
+    Supports point and quantile predictions.
     """
+
+    _model_name: ClassVar[ModelName] = ModelName.CHRONOS2
 
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
 
-    padding_mask: np.ndarray | None = None
-    """Padding mask for variable-length sequences. Shape: same as x.
-    1 for valid timesteps, 0 for padding."""
-
-    id_mask: np.ndarray | None = None
-    """Identifier mask for multi-series forecasting. Shape: (batch_size,).
-    Each unique ID represents a different time series."""
-
-    num_samples: int | None = None
-    """Number of forecast samples for probabilistic predictions.
-    If set, returns sample-based distribution."""
-
     quantiles: list[float] | None = None
     """Quantile levels for probabilistic forecasting.
-    Example: [0.1, 0.5, 0.9] for 10th, 50th (median), 90th percentiles."""
+    Example: [0.1, 0.5, 0.9] for 10th, 50th (median), 90th percentiles.
+    Only used when output_type='quantiles'."""
 
     def __post_init__(self) -> None:
-        """Validate ToTo-specific parameters."""
+        """Validate Chronos2-specific parameters.
+
+        Automatically called after dataclass initialization to ensure
+        quantiles are valid probability values.
+
+        Raises:
+            ValueError: If quantiles are not in the range [0.0, 1.0]
+        """
         super().__post_init__()
 
-        if self.padding_mask is not None:
-            if not isinstance(self.padding_mask, np.ndarray):
-                raise TypeError("padding_mask must be numpy.ndarray")
-            if self.padding_mask.shape != self.x.shape:
-                raise ValueError(f"padding_mask shape {self.padding_mask.shape} must match x shape {self.x.shape}")
-
-        if self.id_mask is not None:
-            if not isinstance(self.id_mask, np.ndarray):
-                raise TypeError("id_mask must be numpy.ndarray")
-
-        if self.num_samples is not None and self.num_samples <= 0:
-            raise ValueError(f"num_samples must be positive, got {self.num_samples}")
-
         if self.quantiles is not None:
-            if not all(0 <= q <= 1 for q in self.quantiles):
-                raise ValueError(f"quantiles must be in [0, 1], got {self.quantiles}")
+            if not all(0.0 <= q <= 1.0 for q in self.quantiles):
+                raise ValueError(f"quantiles must be in [0.0, 1.0], got {self.quantiles}")
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-        """Convert ToTo request to Arrow format."""
+        """Convert Chronos2 request to Arrow format.
+
+        Separates request into large arrays (sent as Arrow columns) and
+        small metadata parameters (sent in Arrow schema metadata).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
         arrays, metadata = super().to_arrays_and_metadata()
 
-        # Add ToTo-specific arrays (large data)
-        if self.padding_mask is not None:
-            arrays["padding_mask"] = self.padding_mask
-        if self.id_mask is not None:
-            arrays["id_mask"] = self.id_mask
-
-        # Add ToTo-specific metadata (small parameters)
+        # Add Chronos2-specific metadata (small parameters)
         metadata["output_type"] = self.output_type
-        if self.num_samples is not None:
-            metadata["num_samples"] = self.num_samples
         if self.quantiles is not None:
             metadata["quantiles"] = self.quantiles
+
+        return arrays, metadata
+
+
+@dataclass
+class TiRexForecastRequest(ForecastRequest):
+    """Forecast request for TiRex model.
+
+    TiRex - Transformer-based time series forecasting.
+    Supports point and quantile predictions.
+    """
+
+    _model_name: ClassVar[ModelName] = ModelName.TIREX
+
+    output_type: OutputType = "point"
+    """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
+
+    def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+        """Convert TiRex request to Arrow format.
+
+        Separates request into large arrays (sent as Arrow columns) and
+        small metadata parameters (sent in Arrow schema metadata).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
+        arrays, metadata = super().to_arrays_and_metadata()
+
+        metadata["output_type"] = self.output_type
 
         return arrays, metadata
 
@@ -138,6 +184,8 @@ class FlowStateForecastRequest(ForecastRequest):
     FlowState is optimized for point forecasts with optional scaling
     and different prediction modes.
     """
+
+    _model_name: ClassVar[ModelName] = ModelName.FLOWSTATE
 
     output_type: OutputType = "point"
     """Output type to return. Options: 'point', 'quantiles', 'samples'. Default: 'point'."""
@@ -152,7 +200,15 @@ class FlowStateForecastRequest(ForecastRequest):
              'quantile' (requires output_type='quantiles')."""
 
     def __post_init__(self) -> None:
-        """Validate FlowState-specific parameters."""
+        """Validate FlowState-specific parameters.
+
+        Automatically called after dataclass initialization to ensure
+        parameter validity and consistency between output_type and prediction_type.
+
+        Raises:
+            ValueError: If scale_factor is non-positive, or if output_type and
+                       prediction_type are incompatible
+        """
         super().__post_init__()
 
         if self.scale_factor is not None and self.scale_factor <= 0:
@@ -170,6 +226,10 @@ class FlowStateForecastRequest(ForecastRequest):
                     raise ValueError(
                         f"prediction_type='{self.prediction_type}' requires output_type='point', got '{self.output_type}'"
                     )
+        elif self.output_type == "quantiles":
+            self.prediction_type = "quantile"
+        else:
+            self.prediction_type = "median"
 
         # Validate output_type requires corresponding prediction_type
         if self.output_type == "quantiles" and self.prediction_type != "quantile":
@@ -178,12 +238,17 @@ class FlowStateForecastRequest(ForecastRequest):
                 f"got prediction_type='{self.prediction_type}'"
             )
         if self.output_type == "point" and self.prediction_type == "quantile":
-            raise ValueError(
-                "output_type='point' conflicts with prediction_type='quantile'"
-            )
+            raise ValueError("output_type='point' conflicts with prediction_type='quantile'")
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-        """Convert FlowState request to Arrow format."""
+        """Convert FlowState request to Arrow format.
+
+        Separates request into large arrays (sent as Arrow columns) and
+        small metadata parameters (sent in Arrow schema metadata).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
         arrays, metadata = super().to_arrays_and_metadata()
 
         # Add FlowState-specific metadata
@@ -209,13 +274,13 @@ class ForecastResponse:
 
     # Backend outputs
     point: np.ndarray | None = None
-    """Point predictions from FlowState. Shape: (batch_size, horizon, features)"""
+    """Point predictions. Shape: (batch_size, horizon, features)"""
 
     quantiles: np.ndarray | None = None
-    """Quantile predictions from ToTo. Shape: (batch_size, horizon, num_quantiles)"""
+    """Quantile predictions. Shape: (batch_size, horizon, num_quantiles, features)"""
 
     samples: np.ndarray | None = None
-    """Sample predictions from ToTo. Shape: (batch_size, horizon, num_samples)"""
+    """Sample predictions. Shape: (batch_size, horizon, num_samples)"""
 
     @classmethod
     def from_arrays_and_metadata(cls, arrays: dict[str, np.ndarray], metadata: dict[str, Any]) -> "ForecastResponse":
@@ -248,6 +313,11 @@ class ForecastResponse:
         )
 
     def __repr__(self) -> str:
+        """Return string representation of forecast response.
+
+        Returns:
+            Human-readable string showing available outputs and their shapes
+        """
         outputs = []
         if self.point is not None:
             outputs.append(f"point.shape={self.point.shape}")
@@ -258,8 +328,4 @@ class ForecastResponse:
 
         outputs_str = ", ".join(outputs) if outputs else "None"
 
-        return (
-            f"ForecastResponse("
-            f"outputs=[{outputs_str}], "
-            f"metadata={self.metadata})"
-        )
+        return f"ForecastResponse(outputs=[{outputs_str}], metadata={self.metadata})"

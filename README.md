@@ -1,6 +1,21 @@
 # FAIM SDK
 
-Python SDK for FAIM time-series forecasting with foundation AI models.
+[![PyPI version](https://badge.fury.io/py/faim-sdk.svg)](https://badge.fury.io/py/faim-sdk)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+Production-ready Python SDK for FAIM (Foundation AI Models) - a high-performance time-series forecasting platform powered by foundation models.
+
+## Features
+
+- **🚀 Multiple Foundation Models**: FlowState, Amazon Chronos 2.0, TiRex
+- **🔒 Type-Safe API**: Full type hints with Pydantic validation
+- **⚡ High Performance**: Optimized Apache Arrow serialization with zero-copy operations
+- **🎯 Probabilistic & Deterministic**: Point forecasts, quantiles, and samples
+- **🔄 Async Support**: Built-in async/await support for concurrent requests
+- **📊 Rich Error Handling**: Machine-readable error codes with detailed diagnostics
+- **🧪 Battle-Tested**: Production-ready with comprehensive error handling
+- **📈 Evaluation Tools**: Built-in metrics (MSE, MASE, CRPS) and visualization utilities
 
 ## Installation
 
@@ -8,89 +23,160 @@ Python SDK for FAIM time-series forecasting with foundation AI models.
 pip install faim-sdk
 ```
 
+## Authentication
+
+Get your free API key at **[https://faim.it.com/](https://faim.it.com/)**
+
+```python
+from faim_sdk import ForecastClient
+
+# Initialize client with your API key
+client = ForecastClient(api_key="your-api-key")
+```
+
 ## Quick Start
 
 ```python
 import numpy as np
-from faim_sdk import ForecastClient, FlowStateForecastRequest
-from faim_client.models import ModelName
+from faim_sdk import ForecastClient, Chronos2ForecastRequest
 
 # Initialize client
-client = ForecastClient(
-    base_url="http://localhost:8003",
-    timeout=60.0
-)
+client = ForecastClient(api_key="your-api-key")
 
 # Prepare your time-series data
 # Shape: (batch_size, sequence_length, features)
-data = np.random.randn(1, 100, 1).astype(np.float32)
+data = np.random.randn(32, 100, 1).astype(np.float32)
 
-# Create forecast request
-request = FlowStateForecastRequest(
+# Create probabilistic forecast request
+request = Chronos2ForecastRequest(
     x=data,
-    horizon=10,
-    model_version="1"
+    horizon=24,  # Forecast 24 steps ahead
+    output_type="quantiles",
+    quantiles=[0.1, 0.5, 0.9]  # 10th, 50th (median), 90th percentiles
 )
 
-# Generate forecast
-response = client.forecast(ModelName.FLOWSTATE, request)
+# Generate forecast - model inferred automatically from request type
+response = client.forecast(request)
 
 # Access predictions
-print(response.point)  # Shape: (batch_size, horizon, features)
-print(response.metadata)  # Model metadata
+print(response.quantiles.shape)  # (32, 24, 3, 1)
+print(response.metadata)  # Model version, inference time, etc.
 ```
 
-## Models
+## Input/Output Format
+
+### Input Data Format
+
+**All models require 3D input arrays:**
+
+```python
+# Shape: (batch_size, sequence_length, features)
+x = np.array([
+    [[1.0], [2.0], [3.0]],  # Series 1
+    [[4.0], [5.0], [6.0]]   # Series 2
+])  # Shape: (2, 3, 1)
+```
+
+- **batch_size**: Number of independent time series
+- **sequence_length**: Historical data points (context window)
+- **features**: Number of variables per time step (use 1 for univariate)
+
+**Important**: 2D input will raise a validation error. Always provide 3D arrays.
+
+### Output Data Format
+
+**Point Forecasts** (3D):
+```python
+response.point  # Shape: (batch_size, horizon, features)
+```
+
+**Quantile Forecasts** (4D):
+```python
+response.quantiles  # Shape: (batch_size, horizon, num_quantiles, features)
+# Example: (32, 24, 5, 1) = 32 series, 24 steps ahead, 5 quantiles, 1 feature
+```
+
+### Univariate vs Multivariate
+
+- **Chronos2**: ✅ Supports multivariate forecasting (multiple features)
+- **FlowState**: ⚠️ Univariate only - automatically transforms multivariate input
+- **TiRex**: ⚠️ Univariate only - automatically transforms multivariate input
+
+When you provide multivariate input (features > 1) to FlowState or TiRex, the SDK automatically:
+1. Issues a warning
+2. Forecasts each feature independently
+3. Reshapes the output back to your original structure
+
+```python
+# Multivariate input to FlowState
+data = np.random.randn(2, 100, 3)  # 2 series, 3 features
+request = FlowStateForecastRequest(x=data, horizon=24, prediction_type="mean")
+
+# Warning: "FlowState model only supports univariate forecasting..."
+response = client.forecast(request)
+
+# Output is automatically reshaped
+print(response.point.shape)  # (2, 24, 3) - original structure preserved
+```
+
+## Available Models
 
 ### FlowState
-
-Point forecasting model optimized for deterministic predictions.
 
 ```python
 from faim_sdk import FlowStateForecastRequest
 
 request = FlowStateForecastRequest(
     x=data,
-    horizon=10,
-    model_version="1",
-    output_type="point",  # Options: "point", "quantiles", "samples"
-    scale_factor=1.0,  # Optional normalization
-    prediction_type="mean"  # Options: "mean", "median", "quantile"
+    horizon=24,
+    model_version="latest",
+    output_type="point",
+    scale_factor=1.0,  # Optional: normalization factor, for details check: https://huggingface.co/ibm-granite/granite-timeseries-flowstate-r1
+    prediction_type="mean"  # Options: "mean", "median"
 )
+
+response = client.forecast(request)
+print(response.point.shape)  # (batch_size, 24, features)
 ```
 
-### ToTo
-
-Probabilistic forecasting model with quantile and sample-based predictions.
+### Chronos 2.0
 
 ```python
-from faim_sdk import ToToForecastRequest
+from faim_sdk import Chronos2ForecastRequest
 
-# Quantile predictions
-request = ToToForecastRequest(
+# Quantile-based probabilistic forecast
+request = Chronos2ForecastRequest(
     x=data,
-    horizon=10,
-    model_version="1",
+    horizon=24,
     output_type="quantiles",
-    quantiles=[0.1, 0.5, 0.9]  # 10th, 50th, 90th percentiles
+    quantiles=[0.05, 0.25, 0.5, 0.75, 0.95]  # Full distribution
 )
 
-# Sample-based predictions
-request = ToToForecastRequest(
+response = client.forecast(request)
+print(response.quantiles.shape)  # (batch_size, 24, 5)
+```
+
+### TiRex
+
+```python
+from faim_sdk import TiRexForecastRequest
+
+request = TiRexForecastRequest(
     x=data,
-    horizon=10,
-    model_version="1",
-    output_type="samples",
-    num_samples=100
+    horizon=24,
+    output_type="point"
 )
+
+response = client.forecast(request)
+print(response.point.shape)  # (batch_size, 24, features)
 ```
 
 ## Response Format
 
-All forecasts return a `ForecastResponse` object:
+All forecasts return a `ForecastResponse` object with predictions and metadata:
 
 ```python
-response = client.forecast(ModelName.TOTO, request)
+response = client.forecast(request)
 
 # Access predictions based on output_type
 if response.point is not None:
@@ -98,53 +184,279 @@ if response.point is not None:
 
 if response.quantiles is not None:
     quantiles = response.quantiles  # Shape: (batch_size, horizon, num_quantiles)
+    # Lower quantiles for uncertainty bounds
+    lower_bound = quantiles[:, :, 0]  # 10th percentile
+    median = quantiles[:, :, 1]       # 50th percentile (median)
+    upper_bound = quantiles[:, :, 2]  # 90th percentile
 
 if response.samples is not None:
     samples = response.samples  # Shape: (batch_size, horizon, num_samples)
 
 # Access metadata
-print(response.metadata)  # {'model_name': 'toto', 'model_version': '1'}
+print(response.metadata)
+# {'model_name': 'chronos2', 'model_version': '1.0', 'inference_time_ms': 123}
 ```
 
-## Async Usage
+## Evaluation & Metrics
+
+The SDK includes a comprehensive evaluation toolkit (`faim_sdk.eval`) for measuring forecast quality with standard metrics and visualizations.
+
+### Installation
+
+For visualization support, install with the viz extra:
+
+```bash
+pip install faim-sdk[viz]
+```
+
+### Available Metrics
+
+#### Mean Squared Error (MSE)
+
+Measures average squared difference between predictions and ground truth.
 
 ```python
-async with ForecastClient(base_url="http://localhost:8003") as client:
-    response = await client.forecast_async(ModelName.FLOWSTATE, request)
-    print(response.point)
+from faim_sdk.eval import mse
+
+# Evaluate point forecast
+mse_score = mse(test_data, response.point, reduction='mean')
+print(f"MSE: {mse_score:.4f}")
+
+# Per-sample MSE
+mse_per_sample = mse(test_data, response.point, reduction='none')
+print(f"MSE per sample shape: {mse_per_sample.shape}")  # (batch_size,)
 ```
 
-## Examples
+#### Mean Absolute Scaled Error (MASE)
 
-See the `examples/` directory for complete notebook examples:
-- `flowstate_simple_example.ipynb` - Point forecasting with FlowState
-- `toto_simple_example.ipynb` - Probabilistic forecasting with ToTo
+Scale-independent metric comparing forecast to naive baseline (better than MAPE for series with zeros).
+
+```python
+from faim_sdk.eval import mase
+
+# MASE requires training data for baseline
+mase_score = mase(test_data, response.point, train_data, reduction='mean')
+print(f"MASE: {mase_score:.4f}")
+
+# Interpretation:
+# MASE < 1: Better than naive baseline
+# MASE = 1: Equivalent to naive baseline
+# MASE > 1: Worse than naive baseline
+```
+
+#### Continuous Ranked Probability Score (CRPS)
+
+Proper scoring rule for probabilistic forecasts - generalizes MAE to distributions.
+
+```python
+from faim_sdk.eval import crps_from_quantiles
+
+# Evaluate probabilistic forecast with quantiles
+crps_score = crps_from_quantiles(
+    test_data,
+    response.quantiles,
+    quantile_levels=[0.1, 0.5, 0.9],
+    reduction='mean'
+)
+print(f"CRPS: {crps_score:.4f}")
+```
+
+### Visualization
+
+Plot forecasts with training context and ground truth:
+
+```python
+from faim_sdk.eval import plot_forecast
+
+# Plot single sample (remember to index batch dimension!)
+fig, ax = plot_forecast(
+    train_data=train_data[0],  # (seq_len, features) - 2D array
+    forecast=response.point[0],  # (horizon, features) - 2D array
+    test_data=test_data[0],  # (horizon, features) - optional
+    title="Time Series Forecast"
+)
+
+# Save to file
+fig.savefig("forecast.png", dpi=300, bbox_inches="tight")
+```
+
+#### Multi-Feature Visualization
+
+```python
+# Option 1: All features on same plot
+fig, ax = plot_forecast(
+    train_data[0],
+    response.point[0],
+    test_data[0],
+    features_on_same_plot=True,
+    feature_names=["Temperature", "Humidity", "Pressure"]
+)
+
+# Option 2: Separate subplots per feature
+fig, axes = plot_forecast(
+    train_data[0],
+    response.point[0],
+    test_data[0],
+    features_on_same_plot=False,
+    feature_names=["Temperature", "Humidity", "Pressure"]
+)
+```
+
+### Complete Evaluation Example
+
+```python
+import numpy as np
+from faim_sdk import ForecastClient, Chronos2ForecastRequest
+from faim_sdk.eval import mse, mase, crps_from_quantiles, plot_forecast
+
+# Initialize client
+client = ForecastClient()
+
+# Prepare data splits
+train_data = np.random.randn(32, 100, 1)
+test_data = np.random.randn(32, 24, 1)
+
+# Generate forecast
+request = Chronos2ForecastRequest(
+    x=train_data,
+    horizon=24,
+    output_type="quantiles",
+    quantiles=[0.1, 0.5, 0.9]
+)
+response = client.forecast(request)
+
+# Evaluate point forecast (use median)
+point_pred = response.quantiles[:, :, 1:2]  # Extract median, keep 3D shape
+mse_score = mse(test_data, point_pred)
+mase_score = mase(test_data, point_pred, train_data)
+
+# Evaluate probabilistic forecast
+crps_score = crps_from_quantiles(
+    test_data,
+    response.quantiles,
+    quantile_levels=[0.1, 0.5, 0.9]
+)
+
+print(f"MSE: {mse_score:.4f}")
+print(f"MASE: {mase_score:.4f}")
+print(f"CRPS: {crps_score:.4f}")
+
+# Visualize best and worst predictions
+mse_per_sample = mse(test_data, point_pred, reduction='none')
+best_idx = np.argmin(mse_per_sample)
+worst_idx = np.argmax(mse_per_sample)
+
+fig1, ax1 = plot_forecast(
+    train_data[best_idx],
+    point_pred[best_idx],
+    test_data[best_idx],
+    title=f"Best Forecast (MSE: {mse_per_sample[best_idx]:.4f})"
+)
+fig1.savefig("best_forecast.png")
+
+fig2, ax2 = plot_forecast(
+    train_data[worst_idx],
+    point_pred[worst_idx],
+    test_data[worst_idx],
+    title=f"Worst Forecast (MSE: {mse_per_sample[worst_idx]:.4f})"
+)
+fig2.savefig("worst_forecast.png")
+```
 
 ## Error Handling
 
-The SDK provides specific exception types for different error scenarios:
+The SDK provides **machine-readable error codes** for robust error handling:
 
 ```python
 from faim_sdk import (
-    ModelNotFoundError,
+    ForecastClient,
+    Chronos2ForecastRequest,
     ValidationError,
-    TimeoutError,
-    NetworkError,
-    SerializationError
+    AuthenticationError,
+    RateLimitError,
+    ModelNotFoundError,
+    ErrorCode
 )
 
 try:
-    response = client.forecast(ModelName.FLOWSTATE, request)
-except ModelNotFoundError:
-    print("Model or version not found")
-except ValidationError:
-    print("Invalid request parameters")
-except TimeoutError:
-    print("Request timed out")
-except NetworkError:
-    print("Network communication failed")
-except SerializationError:
-    print("Failed to serialize/deserialize data")
+    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.5, 0.9])
+    response = client.forecast(request)
+
+except AuthenticationError as e:
+    # Handle authentication failures (401, 403)
+    print(f"Authentication failed: {e.message}")
+    print(f"Request ID: {e.error_response.request_id}")
+
+except ValidationError as e:
+    # Handle invalid request parameters (422)
+    if e.error_code == ErrorCode.INVALID_SHAPE:
+        print(f"Shape error: {e.error_response.detail}")
+        # Fix shape and retry
+    elif e.error_code == ErrorCode.MISSING_REQUIRED_FIELD:
+        print(f"Missing field: {e.error_response.detail}")
+
+except RateLimitError as e:
+    # Handle rate limiting (429)
+    print("Rate limit exceeded - implementing exponential backoff")
+    retry_after = e.error_response.metadata.get('retry_after', 60)
+    time.sleep(retry_after)
+
+except ModelNotFoundError as e:
+    # Handle model/version not found (404)
+    print(f"Model not found: {e.message}")
+```
+
+### Exception Hierarchy
+
+```
+FAIMError (base)
+├── APIError
+│   ├── AuthenticationError (401, 403)
+│   ├── InsufficientFundsError (402)
+│   ├── ModelNotFoundError (404)
+│   ├── PayloadTooLargeError (413)
+│   ├── ValidationError (422)
+│   ├── RateLimitError (429)
+│   ├── InternalServerError (500)
+│   └── ServiceUnavailableError (503, 504)
+├── NetworkError
+├── SerializationError
+├── TimeoutError
+└── ConfigurationError
+```
+
+## Async Support
+
+The SDK supports async operations for concurrent requests:
+
+```python
+import asyncio
+from faim_sdk import ForecastClient, Chronos2ForecastRequest
+
+async def forecast_multiple_series():
+    client = ForecastClient(
+        api_key="your-api-key"
+    )
+
+    # Create multiple requests
+    requests = [
+        Chronos2ForecastRequest(x=data1, horizon=24),
+        Chronos2ForecastRequest(x=data2, horizon=24),
+        Chronos2ForecastRequest(x=data3, horizon=24),
+    ]
+
+    # Execute concurrently
+    async with client:
+        tasks = [
+            client.forecast_async(req)
+            for req in requests
+        ]
+        responses = await asyncio.gather(*tasks)
+
+    return responses
+
+# Run async forecasts
+responses = asyncio.run(forecast_multiple_series())
 ```
 
 ## Configuration
@@ -152,63 +464,121 @@ except SerializationError:
 ### Client Options
 
 ```python
-# Without authentication
+from faim_sdk import ForecastClient
+
+# Basic configuration
 client = ForecastClient(
-    base_url="https://api.example.com",
-    timeout=120.0,  # Request timeout in seconds
-    verify_ssl=True,  # SSL certificate verification
-    **httpx_kwargs  # Additional httpx.Client arguments
+    timeout=120.0,  # Request timeout in seconds (default: 120)
+    verify_ssl=True,  # SSL certificate verification (default: True)
 )
 
 # With API key authentication
 client = ForecastClient(
-    base_url="https://api.example.com",
-    api_key="your-secret-api-key",  # API key for authentication
+    api_key="your-secret-api-key",
+    timeout=120.0
+)
+
+# Advanced configuration with custom httpx settings
+import httpx
+
+client = ForecastClient(
+    api_key="your-api-key",
     timeout=120.0,
-    verify_ssl=True
+    limits=httpx.Limits(max_connections=10),  # Connection pooling
+    headers={"X-Custom-Header": "value"}  # Custom headers
 )
 ```
 
 ### Request Options
 
 ```python
+# Compression options for large payloads
+request = Chronos2ForecastRequest(
+    x=data,
+    horizon=24,
+    compression="zstd"  # Options: "zstd", "lz4", None (default: "zstd")
+)
+
+# Model version pinning
 request = FlowStateForecastRequest(
     x=data,
-    horizon=10,
-    model_version="1",
-    compression="zstd",  # Options: "zstd", "lz4", None
+    horizon=24,
+    model_version="1.2.3"  # Pin to specific version (default: "latest")
 )
 ```
 
+## Context Managers
+
+Use context managers for automatic resource cleanup:
+
+```python
+# Sync context manager
+with ForecastClient() as client:
+    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.5, 0.9])
+    response = client.forecast(request)
+    print(response.quantiles)
+# Client automatically closed
+
+# Async context manager
+async with ForecastClient() as client:
+    request = Chronos2ForecastRequest(x=data, horizon=24, quantiles=[0.1, 0.9])
+    response = await client.forecast_async(request)
+    print(response.quantiles)
+# Client automatically closed
+```
+
+## Examples
+
+See the `examples/` directory for complete Jupyter notebook examples:
+
+- **`flowstate_simple_example.ipynb`** - Point forecasting with FlowState on AirPassengers dataset
+- **`chronos2_probabilistic.ipynb`** - Probabilistic forecasting with quantiles (coming soon)
+- **`batch_processing.ipynb`** - Efficient batch processing patterns (coming soon)
+
 ## Requirements
 
-- Python >= 3.10
-- numpy >= 1.20.0
-- pyarrow >= 10.0.0
+- Python >= 3.11
+- numpy >= 1.26.0
+- pyarrow >= 11.0.0
 - httpx >= 0.23.0
+- pydantic >= 2.0.0
 
-## Development
+## Performance Tips
 
-### Regenerating the Low-Level Client
+1. **Batch Processing**: Process multiple time series in a single request for optimal throughput
+   ```python
+   # Good: Single request with 32 series
+   data = np.random.randn(32, 100, 1)
 
-The `faim_client` package is auto-generated from the OpenAPI specification. To regenerate after API changes:
+   # Less efficient: 32 separate requests
+   # for series in data: client.forecast(...)
+   ```
 
-```bash
-# Get the latest OpenAPI spec from your server
-curl http://your-server:8003/openapi.json > openapi.json
+2. **Compression**: Use `compression="zstd"` for large payloads (default, recommended)
 
-# Regenerate the client
-openapi-python-client generate --path openapi.json --config client.config.yaml --meta none
-```
+3. **Async for Concurrent Requests**: Use `forecast_async()` with `asyncio.gather()` for parallel processing
 
-The `--meta none` flag prevents creating an extra outer directory.
+4. **Connection Pooling**: Reuse client instances across requests instead of creating new ones
 
-After regenerating, test that `faim_sdk` still works correctly:
-```bash
-poetry install
-pytest tests/
-```
+## Support
+
+- **Documentation**: [docs.faim.example.com](https://docs.faim.example.com)
+- **Issues**: [GitHub Issues](https://github.com/your-org/faim-sdk/issues)
+- **Email**: support@faim.example.com
 
 ## License
 
-Apache 2.0
+Apache License 2.0 - See [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use FAIM in your research, please cite:
+
+```bibtex
+@software{faim_sdk,
+  title = {FAIM SDK: Foundation AI Models for Time Series Forecasting},
+  author = {FAIM Team},
+  year = {2024},
+  url = {https://github.com/your-org/faim-sdk}
+}
+```
