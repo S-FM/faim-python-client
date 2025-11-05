@@ -16,7 +16,8 @@ class TestPlotForecast:
         """Ensure matplotlib is available for tests."""
         try:
             import matplotlib
-            matplotlib.use('Agg')  # Use non-interactive backend for testing
+
+            matplotlib.use("Agg")  # Use non-interactive backend for testing
         except ImportError:
             pytest.skip("matplotlib not available")
 
@@ -70,7 +71,7 @@ class TestPlotForecast:
             forecast,
             test_data,
             features_on_same_plot=True,
-            feature_names=["Feature A", "Feature B", "Feature C"]
+            feature_names=["Feature A", "Feature B", "Feature C"],
         )
 
         assert fig is not None
@@ -85,10 +86,7 @@ class TestPlotForecast:
         forecast = np.random.randn(24, 3)
 
         fig, axes = plot_forecast(
-            train_data,
-            forecast,
-            features_on_same_plot=False,
-            feature_names=["Temp", "Humidity", "Pressure"]
+            train_data, forecast, features_on_same_plot=False, feature_names=["Temp", "Humidity", "Pressure"]
         )
 
         assert fig is not None
@@ -129,11 +127,7 @@ class TestPlotForecast:
         train_data = np.random.randn(100, 3)
         forecast = np.random.randn(24, 3)
 
-        fig, axes = plot_forecast(
-            train_data,
-            forecast,
-            features_on_same_plot=False
-        )
+        fig, axes = plot_forecast(train_data, forecast, features_on_same_plot=False)
 
         # Should use default names: Feature 1, Feature 2, Feature 3
         assert axes[0].get_title() == "Feature 1"
@@ -147,11 +141,7 @@ class TestPlotForecast:
         train_data = np.random.randn(100, 1)
         forecast = np.random.randn(24, 1)
 
-        fig, axes = plot_forecast(
-            train_data,
-            forecast,
-            features_on_same_plot=False
-        )
+        fig, axes = plot_forecast(train_data, forecast, features_on_same_plot=False)
 
         # Should use 'Series' for single feature
         assert axes[0].get_title() == "Series"
@@ -229,7 +219,7 @@ class TestPlotForecast:
             plot_forecast(
                 train_data,
                 forecast,
-                feature_names=["A", "B"]  # Only 2, but 3 features
+                feature_names=["A", "B"],  # Only 2, but 3 features
             )
 
     def test_plot_forecast_type_error_train(self):
@@ -299,25 +289,27 @@ class TestPlotForecast:
         import sys
 
         # Remove matplotlib from modules
-        matplotlib_modules = [key for key in sys.modules if key.startswith('matplotlib')]
+        matplotlib_modules = [key for key in sys.modules if key.startswith("matplotlib")]
         for mod in matplotlib_modules:
             monkeypatch.delitem(sys.modules, mod, raising=False)
 
         # Mock import to fail
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
-            if name.startswith('matplotlib'):
+            if name.startswith("matplotlib"):
                 raise ImportError("No module named 'matplotlib'")
             return original_import(name, *args, **kwargs)
 
-        monkeypatch.setattr(builtins, '__import__', mock_import)
+        monkeypatch.setattr(builtins, "__import__", mock_import)
 
         # Force reload of visualization module
         import importlib
 
         import faim_sdk.eval
+
         importlib.reload(faim_sdk.eval.visualization)
 
         from faim_sdk.eval.visualization import plot_forecast
@@ -386,7 +378,7 @@ class TestPlotForecast:
             train_data=train_batch[0],  # (100, 1)
             forecast=forecast_batch[0],  # (24, 1)
             test_data=test_batch[0],  # (24, 1)
-            title="Sample 1 Forecast"
+            title="Sample 1 Forecast",
         )
 
         assert fig is not None

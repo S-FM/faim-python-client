@@ -122,17 +122,11 @@ def mse(
 
     # Shape validation
     if y_true.ndim != 3:
-        raise ValueError(
-            f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}"
-        )
+        raise ValueError(f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}")
     if y_pred.ndim != 3:
-        raise ValueError(
-            f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}"
-        )
+        raise ValueError(f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}")
     if y_true.shape != y_pred.shape:
-        raise ValueError(
-            f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}"
-        )
+        raise ValueError(f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}")
 
     # Empty validation
     if y_true.size == 0:
@@ -215,17 +209,11 @@ def mae(
 
     # Shape validation
     if y_true.ndim != 3:
-        raise ValueError(
-            f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}"
-        )
+        raise ValueError(f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}")
     if y_pred.ndim != 3:
-        raise ValueError(
-            f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}"
-        )
+        raise ValueError(f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}")
     if y_true.shape != y_pred.shape:
-        raise ValueError(
-            f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}"
-        )
+        raise ValueError(f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}")
 
     # Empty validation
     if y_true.size == 0:
@@ -341,43 +329,33 @@ def mase(
 
     # Shape validation
     if y_true.ndim != 3:
-        raise ValueError(
-            f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}"
-        )
+        raise ValueError(f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}")
     if y_pred.ndim != 3:
-        raise ValueError(
-            f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}"
-        )
+        raise ValueError(f"y_pred must be 3-dimensional (batch_size, horizon, features), got shape {y_pred.shape}")
     if y_train.ndim != 3:
         raise ValueError(
             f"y_train must be 3-dimensional (batch_size, train_length, features), got shape {y_train.shape}"
         )
 
     if y_true.shape != y_pred.shape:
-        raise ValueError(
-            f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}"
-        )
+        raise ValueError(f"y_true and y_pred must have the same shape, got {y_true.shape} and {y_pred.shape}")
 
     batch_size_true, _, features_true = y_true.shape
     batch_size_train, train_length, features_train = y_train.shape
 
     if batch_size_true != batch_size_train:
         raise ValueError(
-            f"Batch size mismatch: y_true has {batch_size_true} samples, "
-            f"y_train has {batch_size_train} samples"
+            f"Batch size mismatch: y_true has {batch_size_true} samples, y_train has {batch_size_train} samples"
         )
 
     if features_true != features_train:
         raise ValueError(
-            f"Feature count mismatch: y_true has {features_true} features, "
-            f"y_train has {features_train} features"
+            f"Feature count mismatch: y_true has {features_true} features, y_train has {features_train} features"
         )
 
     # Training data length validation
     if train_length < 2:
-        raise ValueError(
-            f"y_train must have at least 2 time steps for naive baseline, got {train_length}"
-        )
+        raise ValueError(f"y_train must have at least 2 time steps for naive baseline, got {train_length}")
 
     # Empty validation
     if y_true.size == 0:
@@ -551,9 +529,7 @@ def crps_from_quantiles(
 
     # Shape validation
     if y_true.ndim != 3:
-        raise ValueError(
-            f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}"
-        )
+        raise ValueError(f"y_true must be 3-dimensional (batch_size, horizon, features), got shape {y_true.shape}")
     if quantile_preds.ndim != 3:
         raise ValueError(
             f"quantile_preds must be 3-dimensional (batch_size, horizon, num_quantiles), "
@@ -565,29 +541,22 @@ def crps_from_quantiles(
 
     if batch_size_true != batch_size_pred:
         raise ValueError(
-            f"Batch size mismatch: y_true has {batch_size_true} samples, "
-            f"quantile_preds has {batch_size_pred} samples"
+            f"Batch size mismatch: y_true has {batch_size_true} samples, quantile_preds has {batch_size_pred} samples"
         )
     if horizon_true != horizon_pred:
-        raise ValueError(
-            f"Horizon mismatch: y_true has {horizon_true} steps, "
-            f"quantile_preds has {horizon_pred} steps"
-        )
+        raise ValueError(f"Horizon mismatch: y_true has {horizon_true} steps, quantile_preds has {horizon_pred} steps")
 
     # Quantile levels validation
     if len(quantile_levels) != num_quantiles:
         raise ValueError(
-            f"quantile_levels length ({len(quantile_levels)}) must match "
-            f"num_quantiles dimension ({num_quantiles})"
+            f"quantile_levels length ({len(quantile_levels)}) must match num_quantiles dimension ({num_quantiles})"
         )
 
     if not all(0.0 <= q <= 1.0 for q in quantile_levels):
         raise ValueError(f"quantile_levels must be in [0.0, 1.0], got {quantile_levels}")
 
     if quantile_levels != sorted(quantile_levels):
-        raise ValueError(
-            f"quantile_levels must be sorted in ascending order, got {quantile_levels}"
-        )
+        raise ValueError(f"quantile_levels must be sorted in ascending order, got {quantile_levels}")
 
     # Empty validation
     if y_true.size == 0:

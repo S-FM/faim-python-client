@@ -236,14 +236,10 @@ def plot_forecast(
     if test_data is not None:
         test_horizon, test_features = test_data.shape
         if test_horizon != horizon:
-            raise ValueError(
-                f"Horizon mismatch: forecast has {horizon} steps, "
-                f"test_data has {test_horizon} steps"
-            )
+            raise ValueError(f"Horizon mismatch: forecast has {horizon} steps, test_data has {test_horizon} steps")
         if test_features != num_features:
             raise ValueError(
-                f"Feature count mismatch: forecast has {num_features} features, "
-                f"test_data has {test_features} features"
+                f"Feature count mismatch: forecast has {num_features} features, test_data has {test_features} features"
             )
 
     # Validate feature count for single plot
@@ -258,12 +254,11 @@ def plot_forecast(
         if num_features == 1:
             feature_names = ["Series"]
         else:
-            feature_names = [f"Feature {i+1}" for i in range(num_features)]
+            feature_names = [f"Feature {i + 1}" for i in range(num_features)]
     else:
         if len(feature_names) != num_features:
             raise ValueError(
-                f"feature_names length ({len(feature_names)}) must match "
-                f"number of features ({num_features})"
+                f"feature_names length ({len(feature_names)}) must match number of features ({num_features})"
             )
 
     # Create time indices

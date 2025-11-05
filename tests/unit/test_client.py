@@ -690,12 +690,7 @@ class TestUnivariateTransformation:
         mock_post.return_value = mock_response
 
         client = ForecastClient(base_url="https://api.example.com")
-        request = FlowStateForecastRequest(
-            x=data,
-            horizon=8,
-            prediction_type="quantile",
-            output_type="quantiles"
-        )
+        request = FlowStateForecastRequest(x=data, horizon=8, prediction_type="quantile", output_type="quantiles")
 
         # Execute with warning capture
         with pytest.warns(UserWarning, match="FlowState model only supports univariate forecasting"):

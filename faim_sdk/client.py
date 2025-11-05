@@ -1,4 +1,4 @@
-""" FAIM SDK client for time-series forecasting.
+"""FAIM SDK client for time-series forecasting.
 
 Provides high-level, type-safe API with automatic serialization, error handling,
 and observability.
@@ -197,10 +197,7 @@ def _reshape_univariate_response(
     if response.samples is not None:
         modified_response.samples = response.samples
 
-    logger.debug(
-        f"Reshaped univariate response: "
-        f"original_batch={original_batch_size}, features={num_features}"
-    )
+    logger.debug(f"Reshaped univariate response: original_batch={original_batch_size}, features={num_features}")
 
     return modified_response
 
@@ -465,9 +462,7 @@ class ForecastClient:
             # If univariate transformation was applied, reshape response back
             if transform_shape_info is not None:
                 original_batch_size, num_features = transform_shape_info
-                forecast_response = _reshape_univariate_response(
-                    forecast_response, original_batch_size, num_features
-                )
+                forecast_response = _reshape_univariate_response(forecast_response, original_batch_size, num_features)
 
             logger.info(f"Forecast successful: {forecast_response}")
             return forecast_response
@@ -651,9 +646,7 @@ class ForecastClient:
             # If univariate transformation was applied, reshape response back
             if transform_shape_info is not None:
                 original_batch_size, num_features = transform_shape_info
-                forecast_response = _reshape_univariate_response(
-                    forecast_response, original_batch_size, num_features
-                )
+                forecast_response = _reshape_univariate_response(forecast_response, original_batch_size, num_features)
 
             logger.info(f"Async forecast successful: {forecast_response}")
             return forecast_response

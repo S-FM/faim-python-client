@@ -238,9 +238,7 @@ class FlowStateForecastRequest(ForecastRequest):
                 f"got prediction_type='{self.prediction_type}'"
             )
         if self.output_type == "point" and self.prediction_type == "quantile":
-            raise ValueError(
-                "output_type='point' conflicts with prediction_type='quantile'"
-            )
+            raise ValueError("output_type='point' conflicts with prediction_type='quantile'")
 
     def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         """Convert FlowState request to Arrow format.
@@ -330,8 +328,4 @@ class ForecastResponse:
 
         outputs_str = ", ".join(outputs) if outputs else "None"
 
-        return (
-            f"ForecastResponse("
-            f"outputs=[{outputs_str}], "
-            f"metadata={self.metadata})"
-        )
+        return f"ForecastResponse(outputs=[{outputs_str}], metadata={self.metadata})"

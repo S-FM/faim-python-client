@@ -32,16 +32,14 @@ class TestMSE:
 
     def test_mse_reduction_none(self):
         """Test MSE with reduction='none' returns per-sample metrics."""
-        y_true = np.array([
-            [[1.0], [2.0]],
-            [[3.0], [4.0]],
-            [[5.0], [6.0]]
-        ])
-        y_pred = np.array([
-            [[2.0], [3.0]],  # Errors: 1, 1 -> MSE = 1.0
-            [[3.0], [4.0]],  # Errors: 0, 0 -> MSE = 0.0
-            [[6.0], [8.0]]   # Errors: 1, 2 -> MSE = (1+4)/2 = 2.5
-        ])
+        y_true = np.array([[[1.0], [2.0]], [[3.0], [4.0]], [[5.0], [6.0]]])
+        y_pred = np.array(
+            [
+                [[2.0], [3.0]],  # Errors: 1, 1 -> MSE = 1.0
+                [[3.0], [4.0]],  # Errors: 0, 0 -> MSE = 0.0
+                [[6.0], [8.0]],  # Errors: 1, 2 -> MSE = (1+4)/2 = 2.5
+            ]
+        )
 
         result = mse(y_true, y_pred, reduction="none")
 
@@ -153,21 +151,15 @@ class TestMASE:
 
     def test_mase_reduction_none(self):
         """Test MASE with reduction='none' returns per-sample metrics."""
-        y_train = np.array([
-            [[1.0], [2.0], [3.0]],
-            [[2.0], [4.0], [6.0]],
-            [[5.0], [5.0], [5.0]]
-        ])
-        y_true = np.array([
-            [[4.0]],
-            [[8.0]],
-            [[5.0]]
-        ])
-        y_pred = np.array([
-            [[4.5]],  # Error: 0.5, Naive MAE: 1.0 -> MASE: 0.5
-            [[9.0]],  # Error: 1.0, Naive MAE: 2.0 -> MASE: 0.5
-            [[6.0]]   # Error: 1.0, Naive MAE: 0.0 -> MASE: inf (constant)
-        ])
+        y_train = np.array([[[1.0], [2.0], [3.0]], [[2.0], [4.0], [6.0]], [[5.0], [5.0], [5.0]]])
+        y_true = np.array([[[4.0]], [[8.0]], [[5.0]]])
+        y_pred = np.array(
+            [
+                [[4.5]],  # Error: 0.5, Naive MAE: 1.0 -> MASE: 0.5
+                [[9.0]],  # Error: 1.0, Naive MAE: 2.0 -> MASE: 0.5
+                [[6.0]],  # Error: 1.0, Naive MAE: 0.0 -> MASE: inf (constant)
+            ]
+        )
 
         result = mase(y_true, y_pred, y_train, reduction="none")
 
@@ -276,14 +268,13 @@ class TestCRPS:
 
     def test_crps_reduction_none(self):
         """Test CRPS with reduction='none' returns per-sample metrics."""
-        y_true = np.array([
-            [[5.0]],
-            [[6.0]]
-        ])
-        quantile_preds = np.array([
-            [[5.0]],  # Perfect prediction
-            [[7.0]]   # Error of 1
-        ])
+        y_true = np.array([[[5.0]], [[6.0]]])
+        quantile_preds = np.array(
+            [
+                [[5.0]],  # Perfect prediction
+                [[7.0]],  # Error of 1
+            ]
+        )
         quantile_levels = [0.5]
 
         result = crps_from_quantiles(y_true, quantile_preds, quantile_levels, reduction="none")
@@ -329,7 +320,7 @@ class TestCRPS:
             crps_from_quantiles(
                 y_true,
                 np.array([[[4.0, 5.0]], [[4.0, 5.0]]]),  # Wrong batch
-                quantile_levels
+                quantile_levels,
             )
 
     def test_crps_quantile_length_mismatch_error(self):

@@ -5,7 +5,6 @@ This module provides functions to generate synthetic time series data with clear
 for testing and demonstrating forecasting capabilities.
 """
 
-
 import numpy as np
 
 
@@ -14,7 +13,7 @@ def generate_linear_trend_series(
     context_length: int = 256,
     trend_slope: float = 0.05,
     noise_std: float = 0.5,
-    seed: int | None = None
+    seed: int | None = None,
 ) -> np.ndarray:
     """
     Generate simple time series with linear trend and Gaussian noise.
@@ -59,7 +58,7 @@ def generate_correlated_multi_series(
     seasonal_amplitude: float = 2.0,
     trend_slope: float = 0.02,
     noise_std: float = 0.3,
-    seed: int | None = None
+    seed: int | None = None,
 ) -> np.ndarray:
     """
     Generate two correlated time series with seasonal patterns.
@@ -105,10 +104,7 @@ def generate_correlated_multi_series(
     noise2 = np.random.normal(0, noise_std, size=(batch_size, context_length))
 
     # Mix correlated and independent components
-    series2 = (
-        correlation * series1 +
-        (1 - correlation) * (independent_base[np.newaxis, :] + noise2)
-    )
+    series2 = correlation * series1 + (1 - correlation) * (independent_base[np.newaxis, :] + noise2)
 
     # Stack into (batch_size, context_length, 2)
     multi_series = np.stack([series1, series2], axis=-1)
@@ -122,7 +118,7 @@ def generate_heavy_payload(
     num_features: int = 1,
     pattern_type: str = "mixed",
     noise_std: float = 0.4,
-    seed: int | None = None
+    seed: int | None = None,
 ) -> np.ndarray:
     """
     Generate large batch of time series for stress testing and performance evaluation.
@@ -208,31 +204,17 @@ def generate_test_suite(seed: int = 42) -> dict[str, np.ndarray]:
     """
     return {
         # Simple patterns
-        "linear_trend_single": generate_linear_trend_series(
-            batch_size=1, context_length=256, seed=seed
-        ),
-        "linear_trend_batch": generate_linear_trend_series(
-            batch_size=16, context_length=256, seed=seed
-        ),
-
+        "linear_trend_single": generate_linear_trend_series(batch_size=1, context_length=256, seed=seed),
+        "linear_trend_batch": generate_linear_trend_series(batch_size=16, context_length=256, seed=seed),
         # Correlated multi-series
-        "correlated_multi_single": generate_correlated_multi_series(
-            batch_size=1, context_length=256, seed=seed
-        ),
-        "correlated_multi_batch": generate_correlated_multi_series(
-            batch_size=16, context_length=256, seed=seed
-        ),
-
+        "correlated_multi_single": generate_correlated_multi_series(batch_size=1, context_length=256, seed=seed),
+        "correlated_multi_batch": generate_correlated_multi_series(batch_size=16, context_length=256, seed=seed),
         # Heavy payloads
-        "heavy_mixed": generate_heavy_payload(
-            batch_size=100, context_length=2048, pattern_type="mixed", seed=seed
-        ),
+        "heavy_mixed": generate_heavy_payload(batch_size=100, context_length=2048, pattern_type="mixed", seed=seed),
         "heavy_seasonal": generate_heavy_payload(
             batch_size=100, context_length=2048, pattern_type="seasonal", seed=seed
         ),
-        "heavy_trend": generate_heavy_payload(
-            batch_size=100, context_length=2048, pattern_type="trend", seed=seed
-        ),
+        "heavy_trend": generate_heavy_payload(batch_size=100, context_length=2048, pattern_type="trend", seed=seed),
     }
 
 
