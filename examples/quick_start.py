@@ -1,5 +1,8 @@
+"""Quick start example for FAIM SDK."""
+
 import numpy as np
-from faim_sdk import ForecastClient, Chronos2ForecastRequest
+
+from faim_sdk import Chronos2ForecastRequest, ForecastClient
 
 # Initialize client
 client = ForecastClient(api_key="your-api-key")
@@ -13,7 +16,7 @@ request = Chronos2ForecastRequest(
     x=data,
     horizon=24,  # Forecast 24 steps ahead
     output_type="quantiles",
-    quantiles=[0.1, 0.5, 0.9]  # 10th, 50th (median), 90th percentiles
+    quantiles=[0.1, 0.5, 0.9],  # 10th, 50th (median), 90th percentiles
 )
 
 # Generate forecast - model inferred automatically from request type
