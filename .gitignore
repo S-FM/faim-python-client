@@ -26,3 +26,4 @@ openapi.json
 pyproject.toml
 CLAUDE.md
 /poetry.lock
+/4_clients/
