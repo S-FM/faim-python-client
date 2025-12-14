@@ -4,18 +4,21 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Production-ready Python SDK for FAIM (Foundation AI Models) - a high-performance time-series forecasting platform powered by foundation models.
+Production-ready Python SDK for FAIM (Foundation AI Models) - a unified platform for time-series forecasting and tabular inference powered by foundation models.
 
 ## Features
 
-- **🚀 Multiple Foundation Models**: FlowState, Amazon Chronos 2.0, TiRex
+- **🚀 Multiple Foundation Models**:
+  - **Time-Series**: FlowState, Amazon Chronos 2.0, TiRex
+  - **Tabular**: LimiX (classification & regression)
 - **🔒 Type-Safe API**: Full type hints with Pydantic validation
 - **⚡ High Performance**: Optimized Apache Arrow serialization with zero-copy operations
-- **🎯 Probabilistic & Deterministic**: Point forecasts, quantiles, and samples
+- **🎯 Probabilistic & Deterministic**: Point forecasts, quantiles, samples, and probabilistic predictions
 - **🔄 Async Support**: Built-in async/await support for concurrent requests
 - **📊 Rich Error Handling**: Machine-readable error codes with detailed diagnostics
 - **🧪 Battle-Tested**: Production-ready with comprehensive error handling
 - **📈 Evaluation Tools**: Built-in metrics (MSE, MASE, CRPS) and visualization utilities
+- **🔎 Retrieval-Augmented Inference**: Optional RAI for improved accuracy on small datasets
 
 ## Installation
 
@@ -169,6 +172,114 @@ request = TiRexForecastRequest(
 
 response = client.forecast(request)
 print(response.point.shape)  # (batch_size, 24, features)
+```
+
+## Tabular Inference with LimiX
+
+The SDK also supports **LimiX**, a foundation model for tabular classification and regression:
+
+```python
+from faim_sdk import TabularClient, LimiXPredictRequest
+import numpy as np
+
+# Initialize tabular client
+client = TabularClient(api_key="your-api-key")
+
+# Prepare tabular data (2D arrays)
+X_train = np.random.randn(100, 10).astype(np.float32)
+y_train = np.random.randint(0, 2, 100).astype(np.float32)
+X_test = np.random.randn(20, 10).astype(np.float32)
+
+# Create classification request
+request = LimiXPredictRequest(
+    X_train=X_train,
+    y_train=y_train,
+    X_test=X_test,
+    task_type="Classification",  # or "Regression"
+    use_retrieval=False  # Set to True for retrieval-augmented inference
+)
+
+# Generate predictions
+response = client.predict(request)
+print(response.predictions.shape)   # (20,)
+print(response.probabilities.shape)  # (20, n_classes) - classification only
+```
+
+### Classification Example
+
+```python
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+
+# Load dataset
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
+
+# Convert to float32
+X_train = X_train.astype(np.float32)
+X_test = X_test.astype(np.float32)
+y_train = y_train.astype(np.float32)
+
+# Create and send request
+request = LimiXPredictRequest(
+    X_train=X_train,
+    y_train=y_train,
+    X_test=X_test,
+    task_type="Classification"
+)
+
+response = client.predict(request)
+
+# Evaluate
+from sklearn.metrics import accuracy_score
+accuracy = accuracy_score(y_test, response.predictions.astype(int))
+print(f"Accuracy: {accuracy:.4f}")
+```
+
+### Regression Example
+
+```python
+from sklearn.datasets import fetch_california_housing
+
+# Load dataset
+house_data = fetch_california_housing()
+X, y = house_data.data, house_data.target
+
+# Split data (50/50 for demo)
+split_idx = len(X) // 2
+X_train, X_test = X[:split_idx].astype(np.float32), X[split_idx:].astype(np.float32)
+y_train, y_test = y[:split_idx].astype(np.float32), y[split_idx:].astype(np.float32)
+
+# Create and send request
+request = LimiXPredictRequest(
+    X_train=X_train,
+    y_train=y_train,
+    X_test=X_test,
+    task_type="Regression"
+)
+
+response = client.predict(request)
+
+# Evaluate
+from sklearn.metrics import mean_squared_error
+rmse = np.sqrt(mean_squared_error(y_test, response.predictions))
+print(f"RMSE: {rmse:.4f}")
+```
+
+### Retrieval-Augmented Inference
+
+For better accuracy on small datasets, enable retrieval-augmented inference:
+
+```python
+request = LimiXPredictRequest(
+    X_train=X_train,
+    y_train=y_train,
+    X_test=X_test,
+    task_type="Classification",
+    use_retrieval=True  # Enable RAI (slower but more accurate)
+)
+
+response = client.predict(request)
 ```
 
 ## Response Format

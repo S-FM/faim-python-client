@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
@@ -31,14 +33,14 @@ class ErrorResponse:
                 These codes are stable identifiers that clients can use for
                 programmatic error handling (retries, fallbacks, user messaging).
             message (str): Human-readable error message
-            detail (Union[None, Unset, str]): Detailed error explanation (backward compatible with SDK ErrorResponse.detail)
-            request_id (Union[None, Unset, str]): Request identifier for distributed tracing
+            detail (None | str | Unset): Detailed error explanation (backward compatible with SDK ErrorResponse.detail)
+            request_id (None | str | Unset): Request identifier for distributed tracing
     """
 
     error_code: ErrorCode
     message: str
-    detail: None | Unset | str = UNSET
-    request_id: None | Unset | str = UNSET
+    detail: None | str | Unset = UNSET
+    request_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,13 +48,13 @@ class ErrorResponse:
 
         message = self.message
 
-        detail: None | Unset | str
+        detail: None | str | Unset
         if isinstance(self.detail, Unset):
             detail = UNSET
         else:
             detail = self.detail
 
-        request_id: None | Unset | str
+        request_id: None | str | Unset
         if isinstance(self.request_id, Unset):
             request_id = UNSET
         else:
@@ -80,21 +82,21 @@ class ErrorResponse:
 
         message = d.pop("message")
 
-        def _parse_detail(data: object) -> None | Unset | str:
+        def _parse_detail(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | Unset | str, data)
+            return cast(None | str | Unset, data)
 
         detail = _parse_detail(d.pop("detail", UNSET))
 
-        def _parse_request_id(data: object) -> None | Unset | str:
+        def _parse_request_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | Unset | str, data)
+            return cast(None | str | Unset, data)
 
         request_id = _parse_request_id(d.pop("request_id", UNSET))
 

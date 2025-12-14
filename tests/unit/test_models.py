@@ -12,6 +12,8 @@ from faim_sdk.models import (
     FlowStateForecastRequest,
     ForecastRequest,
     ForecastResponse,
+    LimiXPredictRequest,
+    LimiXPredictResponse,
     TiRexForecastRequest,
 )
 
@@ -472,5 +474,292 @@ class TestForecastResponse:
     def test_default_factory_metadata(self):
         """Test that metadata defaults to empty dict."""
         response = ForecastResponse(point=np.zeros((1, 1, 1)))
+        assert response.metadata == {}
+        assert isinstance(response.metadata, dict)
+
+
+class TestLimiXPredictRequest:
+    """Tests for LimiXPredictRequest model."""
+
+    def test_model_name_is_limix(self):
+        """Model name should be LIMIX."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.randint(0, 2, 100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        request = LimiXPredictRequest(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            task_type="Classification",
+        )
+        assert request.model_name == ModelName.LIMIX
+
+    def test_default_values(self):
+        """Test default parameter values."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.randint(0, 2, 100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        request = LimiXPredictRequest(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            task_type="Classification",
+        )
+        assert request.model_version == "1"
+        assert request.compression == "zstd"
+        assert request.use_retrieval is False
+
+    def test_custom_values(self):
+        """Test custom parameter values."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.randint(0, 3, 100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        request = LimiXPredictRequest(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            task_type="Classification",
+            model_version="2",
+            compression="lz4",
+            use_retrieval=True,
+        )
+        assert request.model_version == "2"
+        assert request.compression == "lz4"
+        assert request.use_retrieval is True
+
+    def test_validation_x_train_must_be_numpy_array(self):
+        """X_train must be numpy array."""
+        y_train = np.random.rand(100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        with pytest.raises(TypeError, match="X_train must be numpy.ndarray"):
+            LimiXPredictRequest(
+                X_train=[[1.0, 2.0]],  # Python list, not ndarray
+                y_train=y_train,
+                X_test=X_test,
+                task_type="Classification",
+            )
+
+    def test_validation_y_train_must_be_numpy_array(self):
+        """y_train must be numpy array."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        with pytest.raises(TypeError, match="y_train must be numpy.ndarray"):
+            LimiXPredictRequest(
+                X_train=X_train,
+                y_train=[1, 2, 3],  # Python list, not ndarray
+                X_test=X_test,
+                task_type="Classification",
+            )
+
+    def test_validation_x_test_must_be_numpy_array(self):
+        """X_test must be numpy array."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100).astype(np.float32)
+
+        with pytest.raises(TypeError, match="X_test must be numpy.ndarray"):
+            LimiXPredictRequest(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=[[1.0, 2.0]],  # Python list, not ndarray
+                task_type="Classification",
+            )
+
+    def test_validation_x_train_must_be_2d(self):
+        """X_train must be 2D array."""
+        y_train = np.random.rand(100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        with pytest.raises(ValueError, match="X_train must be 2D"):
+            LimiXPredictRequest(
+                X_train=np.random.rand(100, 10, 1).astype(np.float32),  # 3D
+                y_train=y_train,
+                X_test=X_test,
+                task_type="Classification",
+            )
+
+    def test_validation_x_test_must_be_2d(self):
+        """X_test must be 2D array."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100).astype(np.float32)
+
+        with pytest.raises(ValueError, match="X_test must be 2D"):
+            LimiXPredictRequest(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=np.random.rand(20, 10, 1).astype(np.float32),  # 3D
+                task_type="Classification",
+            )
+
+    def test_validation_feature_dimension_must_match(self):
+        """X_train and X_test must have same number of features."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100).astype(np.float32)
+        X_test = np.random.rand(20, 15).astype(np.float32)  # Different number of features
+
+        with pytest.raises(ValueError, match="X_train and X_test must have same number of features"):
+            LimiXPredictRequest(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                task_type="Classification",
+            )
+
+    def test_validation_y_train_samples_must_match_x_train(self):
+        """y_train must have same number of samples as X_train."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(50).astype(np.float32)  # Wrong number of samples
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        with pytest.raises(ValueError, match="y_train must have same number of samples as X_train"):
+            LimiXPredictRequest(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                task_type="Classification",
+            )
+
+    def test_validation_task_type_classification(self):
+        """task_type must be 'Classification' or 'Regression'."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        with pytest.raises(ValueError, match="task_type must be 'Classification' or 'Regression'"):
+            LimiXPredictRequest(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                task_type="Invalid",  # type: ignore
+            )
+
+    def test_validation_y_train_1d_array(self):
+        """y_train can be 1D array."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100).astype(np.float32)  # 1D
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        # Should not raise
+        request = LimiXPredictRequest(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            task_type="Regression",
+        )
+        assert request.y_train.ndim == 1
+
+    def test_validation_y_train_2d_array(self):
+        """y_train can be 2D array."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100, 1).astype(np.float32)  # 2D
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        # Should not raise
+        request = LimiXPredictRequest(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            task_type="Regression",
+        )
+        assert request.y_train.ndim == 2
+
+    def test_to_arrays_and_metadata(self):
+        """Test conversion to Arrow format."""
+        X_train = np.random.rand(100, 10).astype(np.float32)
+        y_train = np.random.rand(100).astype(np.float32)
+        X_test = np.random.rand(20, 10).astype(np.float32)
+
+        request = LimiXPredictRequest(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            task_type="Classification",
+            use_retrieval=True,
+        )
+        arrays, metadata = request.to_arrays_and_metadata()
+
+        # Check arrays
+        assert "X_train" in arrays
+        assert "y_train" in arrays
+        assert "X_test" in arrays
+        assert np.array_equal(arrays["X_train"], X_train)
+        assert np.array_equal(arrays["y_train"], y_train)
+        assert np.array_equal(arrays["X_test"], X_test)
+
+        # Check metadata
+        assert metadata["task_type"] == "Classification"
+        assert metadata["use_retrieval"] is True
+
+
+class TestLimiXPredictResponse:
+    """Tests for LimiXPredictResponse model."""
+
+    def test_from_arrays_predictions_only(self):
+        """Test creating response with predictions only (regression)."""
+        predictions_data = np.random.rand(20)
+        arrays = {"predictions": predictions_data}
+        metadata = {"model_name": "limix", "task_type": "Regression"}
+
+        response = LimiXPredictResponse.from_arrays_and_metadata(arrays, metadata)
+
+        assert response.predictions is not None
+        assert np.array_equal(response.predictions, predictions_data)
+        assert response.probabilities is None
+        assert response.metadata == metadata
+
+    def test_from_arrays_with_probabilities(self):
+        """Test creating response with predictions and probabilities (classification)."""
+        predictions_data = np.array([0, 1, 0, 1])
+        probabilities_data = np.random.rand(4, 2)
+        arrays = {"predictions": predictions_data, "probabilities": probabilities_data}
+        metadata = {"model_name": "limix", "task_type": "Classification"}
+
+        response = LimiXPredictResponse.from_arrays_and_metadata(arrays, metadata)
+
+        assert response.predictions is not None
+        assert np.array_equal(response.predictions, predictions_data)
+        assert response.probabilities is not None
+        assert np.array_equal(response.probabilities, probabilities_data)
+
+    def test_from_arrays_missing_predictions_raises(self):
+        """Test that missing predictions array raises error."""
+        arrays = {"probabilities": np.random.rand(4, 2)}
+        metadata = {}
+
+        with pytest.raises(ValueError, match="Response missing 'predictions' array"):
+            LimiXPredictResponse.from_arrays_and_metadata(arrays, metadata)
+
+    def test_repr_with_predictions_only(self):
+        """Test string representation with predictions only."""
+        response = LimiXPredictResponse(
+            predictions=np.zeros(20),
+            metadata={"model_name": "limix"},
+        )
+        repr_str = repr(response)
+
+        assert "LimiXPredictResponse" in repr_str
+        assert "predictions.shape=(20,)" in repr_str
+        assert "metadata=" in repr_str
+
+    def test_repr_with_probabilities(self):
+        """Test string representation with predictions and probabilities."""
+        response = LimiXPredictResponse(
+            predictions=np.zeros(20),
+            probabilities=np.zeros((20, 3)),
+            metadata={},
+        )
+        repr_str = repr(response)
+
+        assert "LimiXPredictResponse" in repr_str
+        assert "predictions.shape=(20,)" in repr_str
+        assert "probabilities.shape=(20, 3)" in repr_str
+
+    def test_default_factory_metadata(self):
+        """Test that metadata defaults to empty dict."""
+        response = LimiXPredictResponse(predictions=np.zeros(10))
         assert response.metadata == {}
         assert isinstance(response.metadata, dict)

@@ -1,6 +1,7 @@
 from http import HTTPStatus
 from io import BytesIO
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -21,7 +22,10 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": f"/v1/ts/forecast/{model_name}/{model_version}",
+        "url": "/v1/ts/forecast/{model_name}/{model_version}".format(
+            model_name=quote(str(model_name), safe=""),
+            model_version=quote(str(model_version), safe=""),
+        ),
     }
 
     _kwargs["content"] = body.payload
@@ -32,9 +36,7 @@ def _get_kwargs(
     return _kwargs
 
 
-def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | File | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> ErrorResponse | File | None:
     if response.status_code == 200:
         response_200 = File(payload=BytesIO(response.content))
 
@@ -234,7 +236,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse, File]]
+        Response[ErrorResponse | File]
     """
 
     kwargs = _get_kwargs(
@@ -387,7 +389,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse, File]
+        ErrorResponse | File
     """
 
     return sync_detailed(
@@ -535,7 +537,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[ErrorResponse, File]]
+        Response[ErrorResponse | File]
     """
 
     kwargs = _get_kwargs(
@@ -686,7 +688,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[ErrorResponse, File]
+        ErrorResponse | File
     """
 
     return (
