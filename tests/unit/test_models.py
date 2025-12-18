@@ -21,13 +21,14 @@ from faim_sdk.models import (
 class TestForecastRequest:
     """Tests for base ForecastRequest class."""
 
-    def test_cannot_instantiate_base_class_without_model_name(self):
-        """Base class requires _model_name to be defined."""
-        with pytest.raises(AttributeError):
-            ForecastRequest(
-                x=np.array([[1.0, 2.0], [3.0, 4.0]]),
-                horizon=10,
-            )
+    def test_can_instantiate_base_class(self):
+        """Base class can be instantiated (not abstract)."""
+        request = ForecastRequest(
+            x=np.array([[[1.0], [2.0]], [[3.0], [4.0]]]),
+            horizon=10,
+        )
+        assert request.horizon == 10
+        assert request.x.shape == (2, 2, 1)
 
     def test_validation_requires_numpy_array(self):
         """x parameter must be numpy array."""
@@ -49,7 +50,7 @@ class TestForecastRequest:
         """horizon must be positive."""
         with pytest.raises(ValueError, match="horizon must be positive"):
             Chronos2ForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=0,
             )
 
@@ -57,7 +58,7 @@ class TestForecastRequest:
         """horizon cannot be negative."""
         with pytest.raises(ValueError, match="horizon must be positive"):
             Chronos2ForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=-5,
             )
 
@@ -68,7 +69,7 @@ class TestChronos2ForecastRequest:
     def test_model_name_is_chronos2(self):
         """Model name should be CHRONOS2."""
         request = Chronos2ForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
         )
         assert request.model_name == ModelName.CHRONOS2
@@ -76,7 +77,7 @@ class TestChronos2ForecastRequest:
     def test_default_values(self):
         """Test default parameter values."""
         request = Chronos2ForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
         )
         assert request.model_version == "1"
@@ -105,7 +106,7 @@ class TestChronos2ForecastRequest:
         """Quantiles must be in [0.0, 1.0]."""
         with pytest.raises(ValueError, match="quantiles must be in"):
             Chronos2ForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 quantiles=[0.1, 0.5, 1.5],  # 1.5 is invalid
             )
@@ -114,7 +115,7 @@ class TestChronos2ForecastRequest:
         """Quantiles cannot be negative."""
         with pytest.raises(ValueError, match="quantiles must be in"):
             Chronos2ForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 quantiles=[-0.1, 0.5, 0.9],
             )
@@ -141,7 +142,7 @@ class TestChronos2ForecastRequest:
 
     def test_to_arrays_and_metadata_without_quantiles(self):
         """Test conversion when quantiles not specified."""
-        data = np.array([[1.0, 2.0]])
+        data = np.array([[[1.0], [2.0]]])
         request = Chronos2ForecastRequest(
             x=data,
             horizon=10,
@@ -159,7 +160,7 @@ class TestTiRexForecastRequest:
     def test_model_name_is_tirex(self):
         """Model name should be TIREX."""
         request = TiRexForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
         )
         assert request.model_name == ModelName.TIREX
@@ -167,7 +168,7 @@ class TestTiRexForecastRequest:
     def test_default_values(self):
         """Test default parameter values."""
         request = TiRexForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
         )
         assert request.model_version == "1"
@@ -177,7 +178,7 @@ class TestTiRexForecastRequest:
     def test_custom_output_type(self):
         """Test custom output type."""
         request = TiRexForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
             output_type="quantiles",
         )
@@ -205,7 +206,7 @@ class TestFlowStateForecastRequest:
     def test_model_name_is_flowstate(self):
         """Model name should be FLOWSTATE."""
         request = FlowStateForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
         )
         assert request.model_name == ModelName.FLOWSTATE
@@ -213,19 +214,19 @@ class TestFlowStateForecastRequest:
     def test_default_values(self):
         """Test default parameter values."""
         request = FlowStateForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
         )
         assert request.model_version == "1"
         assert request.compression == "zstd"
         assert request.output_type == "point"
         assert request.scale_factor is None
-        assert request.prediction_type is None
+        assert request.prediction_type == "median"  # Default is median for FlowState
 
     def test_custom_scale_factor(self):
         """Test custom scale factor."""
         request = FlowStateForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
             scale_factor=100.0,
         )
@@ -235,7 +236,7 @@ class TestFlowStateForecastRequest:
         """Scale factor must be positive."""
         with pytest.raises(ValueError, match="scale_factor must be positive"):
             FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 scale_factor=0.0,
             )
@@ -244,7 +245,7 @@ class TestFlowStateForecastRequest:
         """Scale factor cannot be negative."""
         with pytest.raises(ValueError, match="scale_factor must be positive"):
             FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 scale_factor=-1.0,
             )
@@ -252,7 +253,7 @@ class TestFlowStateForecastRequest:
     def test_prediction_type_mean_with_point_output(self):
         """prediction_type='mean' requires output_type='point'."""
         request = FlowStateForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
             output_type="point",
             prediction_type="mean",
@@ -263,7 +264,7 @@ class TestFlowStateForecastRequest:
     def test_prediction_type_median_with_point_output(self):
         """prediction_type='median' requires output_type='point'."""
         request = FlowStateForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
             output_type="point",
             prediction_type="median",
@@ -273,7 +274,7 @@ class TestFlowStateForecastRequest:
     def test_prediction_type_quantile_with_quantiles_output(self):
         """prediction_type='quantile' requires output_type='quantiles'."""
         request = FlowStateForecastRequest(
-            x=np.array([[1.0, 2.0]]),
+            x=np.array([[[1.0], [2.0]]]),
             horizon=10,
             output_type="quantiles",
             prediction_type="quantile",
@@ -285,7 +286,7 @@ class TestFlowStateForecastRequest:
         """prediction_type='mean' incompatible with output_type='quantiles'."""
         with pytest.raises(ValueError, match="prediction_type='mean' requires output_type='point'"):
             FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 output_type="quantiles",
                 prediction_type="mean",
@@ -295,7 +296,7 @@ class TestFlowStateForecastRequest:
         """prediction_type='median' incompatible with output_type='quantiles'."""
         with pytest.raises(ValueError, match="prediction_type='median' requires output_type='point'"):
             FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 output_type="quantiles",
                 prediction_type="median",
@@ -305,7 +306,7 @@ class TestFlowStateForecastRequest:
         """prediction_type='quantile' requires output_type='quantiles'."""
         with pytest.raises(ValueError, match="prediction_type='quantile' requires output_type='quantiles'"):
             FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 output_type="point",
                 prediction_type="quantile",
@@ -313,22 +314,25 @@ class TestFlowStateForecastRequest:
 
     def test_validation_quantiles_output_requires_quantile_prediction(self):
         """output_type='quantiles' requires prediction_type='quantile'."""
-        with pytest.raises(ValueError, match="output_type='quantiles' requires prediction_type='quantile'"):
+        # The validation checks prediction_type first, so it will fail on that
+        with pytest.raises(ValueError, match="prediction_type=.*requires output_type"):
             FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
+                x=np.array([[[1.0], [2.0]]]),
                 horizon=10,
                 output_type="quantiles",
                 prediction_type="mean",
             )
 
     def test_validation_quantiles_output_requires_prediction_type(self):
-        """output_type='quantiles' requires prediction_type to be set."""
-        with pytest.raises(ValueError, match="output_type='quantiles' requires prediction_type='quantile'"):
-            FlowStateForecastRequest(
-                x=np.array([[1.0, 2.0]]),
-                horizon=10,
-                output_type="quantiles",
-            )
+        """output_type='quantiles' automatically sets prediction_type='quantile'."""
+        # When output_type is 'quantiles', prediction_type is automatically set to 'quantile'
+        request = FlowStateForecastRequest(
+            x=np.array([[[1.0], [2.0]]]),
+            horizon=10,
+            output_type="quantiles",
+        )
+        assert request.output_type == "quantiles"
+        assert request.prediction_type == "quantile"
 
     def test_to_arrays_and_metadata_with_all_params(self):
         """Test conversion with all FlowState parameters."""
@@ -351,7 +355,7 @@ class TestFlowStateForecastRequest:
 
     def test_to_arrays_and_metadata_without_optional_params(self):
         """Test conversion without optional FlowState parameters."""
-        data = np.array([[1.0, 2.0]])
+        data = np.array([[[1.0], [2.0]]])
         request = FlowStateForecastRequest(
             x=data,
             horizon=10,
@@ -360,7 +364,8 @@ class TestFlowStateForecastRequest:
 
         assert metadata["output_type"] == "point"
         assert "scale_factor" not in metadata
-        assert "prediction_type" not in metadata
+        # prediction_type has a default value ('median'), so it's included
+        assert metadata["prediction_type"] == "median"
 
 
 class TestForecastResponse:

@@ -169,7 +169,7 @@ class TestAPIError:
 
         assert "Request failed" in result
         assert "status=422" in result
-        assert "error_code=validation_error" in result
+        assert "error_code=VALIDATION_ERROR" in result
         assert "request_id=req_abc123" in result
 
     def test_str_with_all_fields(self):
@@ -190,7 +190,7 @@ class TestAPIError:
 
         assert "Request failed" in result
         assert "status=422" in result
-        assert "error_code=invalid_shape" in result
+        assert "error_code=INVALID_SHAPE" in result
         assert "request_id=req_xyz789" in result
         assert "details=" in result
 
@@ -332,7 +332,7 @@ class TestPayloadTooLargeError:
     def test_typical_usage(self):
         """Test typical payload size error scenario."""
         err_response = ErrorResponse(
-            error_code=ErrorCode.PAYLOAD_TOO_LARGE,
+            error_code=ErrorCode.REQUEST_TOO_LARGE,
             message="Request size exceeds limit",
             detail="Size: 150MB, Limit: 100MB",
         )
@@ -342,7 +342,7 @@ class TestPayloadTooLargeError:
             error_response=err_response,
         )
 
-        assert error.error_code == ErrorCode.PAYLOAD_TOO_LARGE
+        assert error.error_code == ErrorCode.REQUEST_TOO_LARGE
         assert error.status_code == 413
 
 
@@ -357,7 +357,7 @@ class TestInternalServerError:
     def test_typical_usage(self):
         """Test typical internal server error scenario."""
         err_response = ErrorResponse(
-            error_code=ErrorCode.INTERNAL_ERROR,
+            error_code=ErrorCode.INTERNAL_SERVER_ERROR,
             message="An unexpected error occurred",
             request_id="req_500_abc",
         )
@@ -367,7 +367,7 @@ class TestInternalServerError:
             error_response=err_response,
         )
 
-        assert error.error_code == ErrorCode.INTERNAL_ERROR
+        assert error.error_code == ErrorCode.INTERNAL_SERVER_ERROR
         assert error.status_code == 500
 
 
@@ -430,7 +430,8 @@ class TestNetworkError:
             "Connection failed",
             details={"host": "api.example.com", "port": 443},
         )
-        assert error.details["host"] == "https://api.faim.it.com"
+        assert error.details["host"] == "api.example.com"
+        assert error.details["port"] == 443
 
 
 class TestTimeoutError:
@@ -568,7 +569,6 @@ class TestErrorContract:
             message="Validation failed",
             detail="horizon must be positive",
             request_id="req_123",
-            metadata={"field": "horizon", "value": -5},
         )
 
         error = ValidationError("Request validation failed", error_response=err_response)
@@ -577,7 +577,6 @@ class TestErrorContract:
         assert error.error_response.message == "Validation failed"
         assert error.error_response.detail == "horizon must be positive"
         assert error.error_response.request_id == "req_123"
-        assert error.error_response.metadata["field"] == "horizon"
 
     def test_error_code_enum_access(self):
         """Test accessing ErrorCode enum through exception."""

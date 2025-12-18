@@ -13,11 +13,19 @@ class TestPlotForecast:
 
     @pytest.fixture(autouse=True)
     def setup_matplotlib(self):
-        """Ensure matplotlib is available for tests."""
+        """Ensure matplotlib is available for tests and reload visualization module."""
         try:
             import matplotlib
 
             matplotlib.use("Agg")  # Use non-interactive backend for testing
+
+            # Reload the visualization module to re-evaluate MATPLOTLIB_AVAILABLE
+            # This is needed because previous tests might have mocked matplotlib unavailability
+            import importlib
+
+            import faim_sdk.eval.visualization
+
+            importlib.reload(faim_sdk.eval.visualization)
         except ImportError:
             pytest.skip("matplotlib not available")
 
