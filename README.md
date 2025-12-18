@@ -70,7 +70,9 @@ print(response.metadata)  # Model version, inference time, etc.
 
 ### Input Data Format
 
-**All models require 3D input arrays:**
+#### Time-Series Models (FlowState, Chronos2, TiRex)
+
+**All time-series models require 3D input arrays:**
 
 ```python
 # Shape: (batch_size, sequence_length, features)
@@ -86,7 +88,24 @@ x = np.array([
 
 **Important**: 2D input will raise a validation error. Always provide 3D arrays.
 
+#### Tabular Models (LimiX)
+
+**Tabular models require 2D input arrays:**
+
+```python
+# Shape: (n_samples, n_features)
+X_train = np.array([
+    [1.0, 2.0, 3.0],  # Sample 1
+    [4.0, 5.0, 6.0],  # Sample 2
+])  # Shape: (2, 3)
+```
+
+- **n_samples**: Number of training/test samples
+- **n_features**: Number of input features per sample
+
 ### Output Data Format
+
+#### Time-Series Output
 
 **Point Forecasts** (3D):
 ```python
@@ -99,11 +118,27 @@ response.quantiles  # Shape: (batch_size, horizon, num_quantiles, features)
 # Example: (32, 24, 5, 1) = 32 series, 24 steps ahead, 5 quantiles, 1 feature
 ```
 
-### Univariate vs Multivariate
+#### Tabular Output
+
+**Predictions** (1D):
+```python
+response.predictions  # Shape: (n_samples,)
+# Classification: class labels or indices
+# Regression: continuous values
+```
+
+**Classification Probabilities** (2D):
+```python
+response.probabilities  # Shape: (n_samples, n_classes) - classification only
+# Probability for each class
+```
+
+### Univariate vs Multivariate (Time-Series Only)
 
 - **Chronos2**: ✅ Supports multivariate forecasting (multiple features)
 - **FlowState**: ⚠️ Univariate only - automatically transforms multivariate input
 - **TiRex**: ⚠️ Univariate only - automatically transforms multivariate input
+- **LimiX**: ✅ Supports multivariate tabular features (standard in tabular inference)
 
 When you provide multivariate input (features > 1) to FlowState or TiRex, the SDK automatically:
 1. Issues a warning
@@ -124,7 +159,19 @@ print(response.point.shape)  # (2, 24, 3) - original structure preserved
 
 ## Available Models
 
-### FlowState
+### Model Selection Guide
+
+Choose your client and model based on your task:
+
+| Task | Client | Models | Input | Output |
+|------|--------|--------|-------|--------|
+| **Time-Series Forecasting** | `ForecastClient` | FlowState, Chronos2, TiRex | 3D: `(batch, seq_len, features)` | 3D/4D point/quantiles |
+| **Tabular Classification** | `TabularClient` | LimiX | 2D: `(n_samples, n_features)` | 1D predictions + 2D probabilities |
+| **Tabular Regression** | `TabularClient` | LimiX | 2D: `(n_samples, n_features)` | 1D continuous predictions |
+
+### Time-Series Models
+
+#### FlowState
 
 ```python
 from faim_sdk import FlowStateForecastRequest
@@ -142,7 +189,7 @@ response = client.forecast(request)
 print(response.point.shape)  # (batch_size, 24, features)
 ```
 
-### Chronos 2.0
+#### Chronos 2.0
 
 ```python
 from faim_sdk import Chronos2ForecastRequest
@@ -159,7 +206,7 @@ response = client.forecast(request)
 print(response.quantiles.shape)  # (batch_size, 24, 5)
 ```
 
-### TiRex
+#### TiRex
 
 ```python
 from faim_sdk import TiRexForecastRequest
@@ -174,7 +221,7 @@ response = client.forecast(request)
 print(response.point.shape)  # (batch_size, 24, features)
 ```
 
-## Tabular Inference with LimiX
+### LimiX
 
 The SDK also supports **LimiX**, a foundation model for tabular classification and regression:
 
@@ -282,9 +329,9 @@ request = LimiXPredictRequest(
 response = client.predict(request)
 ```
 
-## Response Format
+## Response Format (Time-Series Forecasting)
 
-All forecasts return a `ForecastResponse` object with predictions and metadata:
+Time-series forecasts return a `ForecastResponse` object with predictions and metadata:
 
 ```python
 response = client.forecast(request)
@@ -308,9 +355,11 @@ print(response.metadata)
 # {'model_name': 'chronos2', 'model_version': '1.0', 'inference_time_ms': 123}
 ```
 
-## Evaluation & Metrics
+## Evaluation & Metrics (Time-Series Forecasting)
 
-The SDK includes a comprehensive evaluation toolkit (`faim_sdk.eval`) for measuring forecast quality with standard metrics and visualizations.
+The SDK includes a comprehensive evaluation toolkit (`faim_sdk.eval`) for measuring time-series forecast quality with standard metrics and visualizations.
+
+**Note**: These metrics are designed for time-series forecasting evaluation. For tabular model evaluation (classification/regression), use standard scikit-learn metrics like `accuracy_score`, `mean_squared_error`, etc. (see tabular examples above).
 
 ### Installation
 
@@ -320,7 +369,7 @@ For visualization support, install with the viz extra:
 pip install faim-sdk[viz]
 ```
 
-### Available Metrics
+### Available Metrics for Time-Series
 
 #### Mean Squared Error (MSE)
 
@@ -372,9 +421,9 @@ crps_score = crps_from_quantiles(
 print(f"CRPS: {crps_score:.4f}")
 ```
 
-### Visualization
+### Visualization (Time-Series Only)
 
-Plot forecasts with training context and ground truth:
+Plot time-series forecasts with training context and ground truth:
 
 ```python
 from faim_sdk.eval import plot_forecast
@@ -574,7 +623,21 @@ responses = asyncio.run(forecast_multiple_series())
 
 See the `examples/` directory for complete Jupyter notebook examples:
 
-- **`toy_example.ipynb`** - A toy example showing how to get started with FAIM and generate both point and probabilistic forecasts.
+### Time-Series Forecasting
+- **`toy_example.ipynb`** - Get started with FAIM and generate both point and probabilistic forecasts
+- **`airpassengers_dataset.ipynb`** - End-to-end example with AirPassengers dataset
+
+### Tabular Inference with LimiX
+- **`limix_classification_example.ipynb`** - Binary classification on breast cancer dataset
+  - Standard approach with LimiX
+  - Retrieval-Augmented Inference (RAI) comparison
+  - Side-by-side metrics comparison (Accuracy, Precision, Recall, F1-Score)
+
+- **`limix_regression_example.ipynb`** - Regression on California housing dataset
+  - Standard approach with LimiX
+  - Retrieval-Augmented Inference (RAI) comparison
+  - Comprehensive metrics comparison (MSE, RMSE, MAE, R²)
+  - Residual statistics analysis
 
 ## Requirements
 
@@ -585,6 +648,8 @@ See the `examples/` directory for complete Jupyter notebook examples:
 - pydantic >= 2.0.0
 
 ## Performance Tips
+
+### Time-Series Forecasting
 
 1. **Batch Processing**: Process multiple time series in a single request for optimal throughput
    ```python
@@ -598,6 +663,8 @@ See the `examples/` directory for complete Jupyter notebook examples:
 2. **Compression**: Use `compression="zstd"` for large payloads (default, recommended)
 
 3. **Async for Concurrent Requests**: Use `forecast_async()` with `asyncio.gather()` for parallel processing
+
+### General (All Models)
 
 4. **Connection Pooling**: Reuse client instances across requests instead of creating new ones
 

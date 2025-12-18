@@ -8,13 +8,17 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.http_validation_error import HTTPValidationError
 from ...models.model_name import ModelName
-from ...types import Response
+from ...types import File, Response
 
 
 def _get_kwargs(
     model_name: ModelName,
     model_version: str,
+    *,
+    body: File,
 ) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/v1/tabular/predict/{model_name}/{model_version}".format(
@@ -23,6 +27,11 @@ def _get_kwargs(
         ),
     }
 
+    _kwargs["content"] = body.payload
+
+    headers["Content-Type"] = "application/octet-stream"
+
+    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -60,6 +69,7 @@ def sync_detailed(
     model_version: str,
     *,
     client: AuthenticatedClient | Client,
+    body: File,
 ) -> Response[Any | HTTPValidationError]:
     r"""Generate tabular predictions
 
@@ -96,6 +106,7 @@ def sync_detailed(
     Args:
         model_name (ModelName): Available model names for inference.
         model_version (str):
+        body (File): Apache Arrow IPC stream containing training/test arrays and metadata
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -108,6 +119,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         model_name=model_name,
         model_version=model_version,
+        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -122,6 +134,7 @@ def sync(
     model_version: str,
     *,
     client: AuthenticatedClient | Client,
+    body: File,
 ) -> Any | HTTPValidationError | None:
     r"""Generate tabular predictions
 
@@ -158,6 +171,7 @@ def sync(
     Args:
         model_name (ModelName): Available model names for inference.
         model_version (str):
+        body (File): Apache Arrow IPC stream containing training/test arrays and metadata
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -171,6 +185,7 @@ def sync(
         model_name=model_name,
         model_version=model_version,
         client=client,
+        body=body,
     ).parsed
 
 
@@ -179,6 +194,7 @@ async def asyncio_detailed(
     model_version: str,
     *,
     client: AuthenticatedClient | Client,
+    body: File,
 ) -> Response[Any | HTTPValidationError]:
     r"""Generate tabular predictions
 
@@ -215,6 +231,7 @@ async def asyncio_detailed(
     Args:
         model_name (ModelName): Available model names for inference.
         model_version (str):
+        body (File): Apache Arrow IPC stream containing training/test arrays and metadata
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -227,6 +244,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         model_name=model_name,
         model_version=model_version,
+        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -239,6 +257,7 @@ async def asyncio(
     model_version: str,
     *,
     client: AuthenticatedClient | Client,
+    body: File,
 ) -> Any | HTTPValidationError | None:
     r"""Generate tabular predictions
 
@@ -275,6 +294,7 @@ async def asyncio(
     Args:
         model_name (ModelName): Available model names for inference.
         model_version (str):
+        body (File): Apache Arrow IPC stream containing training/test arrays and metadata
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -289,5 +309,6 @@ async def asyncio(
             model_name=model_name,
             model_version=model_version,
             client=client,
+            body=body,
         )
     ).parsed

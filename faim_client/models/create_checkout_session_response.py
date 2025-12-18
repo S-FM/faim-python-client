@@ -9,7 +9,6 @@ from attrs import field as _attrs_field
 T = TypeVar("T", bound="CreateCheckoutSessionResponse")
 
 
-
 @_attrs_define
 class CreateCheckoutSessionResponse:
     """Response model for checkout session creation.
