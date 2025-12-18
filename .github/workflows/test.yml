@@ -70,9 +70,10 @@ jobs:
 
       - name: Check example notebooks can be read
         run: |
-          python -c "import nbformat; nbformat.read('examples/flowstate_simple_example.ipynb', as_version=4)"
-          python -c "import nbformat; nbformat.read('examples/model_comparison_example.ipynb', as_version=4)"
-          python -c "import nbformat; nbformat.read('examples/model_comparison_simple.ipynb', as_version=4)"
+          python -c "import nbformat; nbformat.read('examples/airpassengers_dataset.ipynb', as_version=4)"
+          python -c "import nbformat; nbformat.read('examples/toy_example.ipynb', as_version=4)"
+          python -c "import nbformat; nbformat.read('examples/limix_classification_example.ipynb', as_version=4)"
+          python -c "import nbformat; nbformat.read('examples/limix_regression_example.ipynb', as_version=4)"
 
       - name: Verify eval package imports
         run: |
