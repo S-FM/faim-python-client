@@ -1,46 +1,38 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ValidationError")
+T = TypeVar("T", bound="APIKeyValidationResponse")
 
 
 @_attrs_define
-class ValidationError:
-    """
+class APIKeyValidationResponse:
+    """Response returned when an API key is successfully validated.
+
     Attributes:
-        loc (list[int | str]):
-        msg (str):
-        type_ (str):
+        valid (bool): Indicates whether the provided API key is valid
+        message (str): Human-readable status message
     """
 
-    loc: list[int | str]
-    msg: str
-    type_: str
+    valid: bool
+    message: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        loc = []
-        for loc_item_data in self.loc:
-            loc_item: int | str
-            loc_item = loc_item_data
-            loc.append(loc_item)
+        valid = self.valid
 
-        msg = self.msg
-
-        type_ = self.type_
+        message = self.message
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "loc": loc,
-                "msg": msg,
-                "type": type_,
+                "valid": valid,
+                "message": message,
             }
         )
 
@@ -49,29 +41,17 @@ class ValidationError:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        loc = []
-        _loc = d.pop("loc")
-        for loc_item_data in _loc:
+        valid = d.pop("valid")
 
-            def _parse_loc_item(data: object) -> int | str:
-                return cast(int | str, data)
+        message = d.pop("message")
 
-            loc_item = _parse_loc_item(loc_item_data)
-
-            loc.append(loc_item)
-
-        msg = d.pop("msg")
-
-        type_ = d.pop("type")
-
-        validation_error = cls(
-            loc=loc,
-            msg=msg,
-            type_=type_,
+        api_key_validation_response = cls(
+            valid=valid,
+            message=message,
         )
 
-        validation_error.additional_properties = d
-        return validation_error
+        api_key_validation_response.additional_properties = d
+        return api_key_validation_response
 
     @property
     def additional_keys(self) -> list[str]:

@@ -107,22 +107,31 @@ from .models import (
     FlowStateForecastRequest,
     ForecastRequest,
     ForecastResponse,
+    LimiXPredictRequest,
+    LimiXPredictResponse,
     OutputType,
+    TaskType,
     TiRexForecastRequest,
 )
+from .tabular_client import TabularClient
 
 __all__ = [
-    # Client
+    # Clients
     "ForecastClient",
-    # Request models
+    "TabularClient",
+    # Forecast request models
     "ForecastRequest",
     "FlowStateForecastRequest",
     "Chronos2ForecastRequest",
     "TiRexForecastRequest",
-    # Response model
+    # Forecast response model
     "ForecastResponse",
+    # Tabular request/response models
+    "LimiXPredictRequest",
+    "LimiXPredictResponse",
     # Type aliases
     "OutputType",
+    "TaskType",
     # Error codes (for programmatic error handling)
     "ErrorCode",
     # Exceptions
@@ -142,4 +151,4 @@ __all__ = [
     "ConfigurationError",
 ]
 
-__version__ = "0.4.2"
+__version__ = "0.5.1"

@@ -6,41 +6,28 @@ from typing import Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ValidationError")
+T = TypeVar("T", bound="TabularStartUploadMetadata")
 
 
 @_attrs_define
-class ValidationError:
-    """
+class TabularStartUploadMetadata:
+    """Metadata for tabular pretrain datasets.
+
     Attributes:
-        loc (list[int | str]):
-        msg (str):
-        type_ (str):
+        columns (list[str]): List of column names expected in each line of the tabular dataset.
     """
 
-    loc: list[int | str]
-    msg: str
-    type_: str
+    columns: list[str]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        loc = []
-        for loc_item_data in self.loc:
-            loc_item: int | str
-            loc_item = loc_item_data
-            loc.append(loc_item)
-
-        msg = self.msg
-
-        type_ = self.type_
+        columns = self.columns
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "loc": loc,
-                "msg": msg,
-                "type": type_,
+                "columns": columns,
             }
         )
 
@@ -49,29 +36,14 @@ class ValidationError:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        loc = []
-        _loc = d.pop("loc")
-        for loc_item_data in _loc:
+        columns = cast(list[str], d.pop("columns"))
 
-            def _parse_loc_item(data: object) -> int | str:
-                return cast(int | str, data)
-
-            loc_item = _parse_loc_item(loc_item_data)
-
-            loc.append(loc_item)
-
-        msg = d.pop("msg")
-
-        type_ = d.pop("type")
-
-        validation_error = cls(
-            loc=loc,
-            msg=msg,
-            type_=type_,
+        tabular_start_upload_metadata = cls(
+            columns=columns,
         )
 
-        validation_error.additional_properties = d
-        return validation_error
+        tabular_start_upload_metadata.additional_properties = d
+        return tabular_start_upload_metadata
 
     @property
     def additional_keys(self) -> list[str]:

@@ -10,9 +10,9 @@ echo "FAIM Client Regeneration Script"
 echo "========================================="
 echo ""
 
-# Check if openapi.json exists
-if [ ! -f "openapi.json" ]; then
-    echo "❌ Error: openapi.json not found in current directory"
+# Check if openapi.json exists in 4_clients directory
+if [ ! -f "4_clients/openapi.json" ]; then
+    echo "❌ Error: openapi.json not found in 4_clients/ directory"
     exit 1
 fi
 
@@ -28,7 +28,7 @@ echo ""
 
 # Run openapi-python-client
 openapi-python-client generate \
-  --path openapi.json \
+  --path 4_clients/openapi.json \
   --config client.config.yaml \
   --overwrite \
   --meta none
@@ -41,13 +41,13 @@ fi
 echo "✅ Client generated successfully"
 echo ""
 
-echo "🧹 Step 2: Cleaning up unused API endpoints..."
+echo "🧹 Step 2: Cleaning up unused API endpoints (keeping only inference)..."
 echo ""
 
 # Track what we're removing
 removed_count=0
 
-# Remove user management API endpoints
+# Remove authentication/user management API endpoints
 if [ -d "faim_client/api/user" ]; then
     echo "   Removing: faim_client/api/user/ (session management - unused)"
     rm -rf faim_client/api/user
@@ -58,6 +58,27 @@ fi
 if [ -d "faim_client/api/api_keys" ]; then
     echo "   Removing: faim_client/api/api_keys/ (API key management - unused)"
     rm -rf faim_client/api/api_keys
+    removed_count=$((removed_count + 1))
+fi
+
+# Remove API usage tracking endpoints
+if [ -d "faim_client/api/api_usage" ]; then
+    echo "   Removing: faim_client/api/api_usage/ (usage tracking - unused)"
+    rm -rf faim_client/api/api_usage
+    removed_count=$((removed_count + 1))
+fi
+
+# Remove dataset management endpoints
+if [ -d "faim_client/api/datasets" ]; then
+    echo "   Removing: faim_client/api/datasets/ (dataset management - unused)"
+    rm -rf faim_client/api/datasets
+    removed_count=$((removed_count + 1))
+fi
+
+# Remove payment management endpoints
+if [ -d "faim_client/api/payments" ]; then
+    echo "   Removing: faim_client/api/payments/ (payment management - unused)"
+    rm -rf faim_client/api/payments
     removed_count=$((removed_count + 1))
 fi
 
@@ -146,6 +167,12 @@ if [ -d "faim_client/api/health" ]; then
     echo "   ✅ Health API endpoint retained"
 else
     echo "   ⚠️  Health API endpoint missing (optional)"
+fi
+
+if [ -d "faim_client/api/tabular" ]; then
+    echo "   ✅ Tabular API endpoint retained"
+else
+    echo "   ⚠️  Tabular API endpoint missing (optional)"
 fi
 
 echo ""

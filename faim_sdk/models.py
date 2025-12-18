@@ -11,8 +11,9 @@ import numpy as np
 
 from faim_client.models import ModelName
 
-# Type alias for output types
+# Type aliases for output types
 OutputType = Literal["point", "quantiles", "samples"]
+TaskType = Literal["Classification", "Regression"]
 
 
 @dataclass
@@ -329,3 +330,188 @@ class ForecastResponse:
         outputs_str = ", ".join(outputs) if outputs else "None"
 
         return f"ForecastResponse(outputs=[{outputs_str}], metadata={self.metadata})"
+
+
+@dataclass
+class LimiXPredictRequest:
+    """Prediction request for LimiX tabular inference model.
+
+    LimiX - Foundation model for tabular classification and regression.
+    Supports retrieval-augmented inference for improved accuracy on small datasets.
+
+    Example:
+        >>> import numpy as np
+        >>> X_train = np.random.randn(100, 10).astype(np.float32)
+        >>> y_train = np.random.randint(0, 2, 100).astype(np.float32)
+        >>> X_test = np.random.randn(20, 10).astype(np.float32)
+        >>> request = LimiXPredictRequest(
+        ...     X_train=X_train,
+        ...     y_train=y_train,
+        ...     X_test=X_test,
+        ...     task_type="Classification"
+        ... )
+    """
+
+    _model_name: ClassVar[ModelName] = ModelName.LIMIX
+
+    X_train: np.ndarray
+    """Training features. Shape: (n_train_samples, n_features)"""
+
+    y_train: np.ndarray
+    """Training labels. Shape: (n_train_samples,) or (n_train_samples, n_targets)"""
+
+    X_test: np.ndarray
+    """Test features for prediction. Shape: (n_test_samples, n_features)"""
+
+    task_type: TaskType
+    """Task type: 'Classification' or 'Regression' (case-sensitive)"""
+
+    model_version: str = "1"
+    """Model version to use. Default: '1'"""
+
+    use_retrieval: bool = False
+    """Enable retrieval-augmented inference (slower but potentially more accurate)"""
+
+    compression: str | None = "zstd"
+    """Arrow compression algorithm. Default: 'zstd'"""
+
+    @property
+    def model_name(self) -> ModelName:
+        """Get the model name for this request type.
+
+        Returns:
+            ModelName enum value (always ModelName.LIMIX)
+        """
+        return self._model_name
+
+    def __post_init__(self) -> None:
+        """Validate LimiX-specific parameters.
+
+        Raises:
+            TypeError: If arrays are not numpy ndarrays
+            ValueError: If array shapes are invalid or incompatible
+        """
+        # Validate array types
+        if not isinstance(self.X_train, np.ndarray):
+            raise TypeError(f"X_train must be numpy.ndarray, got {type(self.X_train).__name__}")
+        if not isinstance(self.y_train, np.ndarray):
+            raise TypeError(f"y_train must be numpy.ndarray, got {type(self.y_train).__name__}")
+        if not isinstance(self.X_test, np.ndarray):
+            raise TypeError(f"X_test must be numpy.ndarray, got {type(self.X_test).__name__}")
+
+        # Validate array dimensions
+        if self.X_train.ndim != 2:
+            raise ValueError(f"X_train must be 2D (n_samples, n_features), got shape {self.X_train.shape}")
+        if self.X_test.ndim != 2:
+            raise ValueError(f"X_test must be 2D (n_samples, n_features), got shape {self.X_test.shape}")
+
+        # Validate feature dimension match
+        if self.X_train.shape[1] != self.X_test.shape[1]:
+            raise ValueError(
+                f"X_train and X_test must have same number of features. "
+                f"Got X_train: {self.X_train.shape[1]}, X_test: {self.X_test.shape[1]}"
+            )
+
+        # Validate y_train shape matches X_train samples
+        if self.y_train.ndim == 1:
+            n_train_labels = self.y_train.shape[0]
+        elif self.y_train.ndim == 2:
+            n_train_labels = self.y_train.shape[0]
+        else:
+            raise ValueError(f"y_train must be 1D or 2D, got shape {self.y_train.shape}")
+
+        if n_train_labels != self.X_train.shape[0]:
+            raise ValueError(
+                f"y_train must have same number of samples as X_train. "
+                f"Got y_train: {n_train_labels}, X_train: {self.X_train.shape[0]}"
+            )
+
+        # Validate task_type
+        if self.task_type not in ("Classification", "Regression"):
+            raise ValueError(f"task_type must be 'Classification' or 'Regression', got '{self.task_type}'")
+
+    def to_arrays_and_metadata(self) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+        """Convert LimiX request to Arrow-compatible format.
+
+        Large arrays are placed in the arrays dict (sent as Arrow columns).
+        Small parameters are placed in metadata (sent in Arrow schema).
+
+        Returns:
+            Tuple of (arrays dict, metadata dict) ready for Arrow serialization
+        """
+        arrays = {
+            "X_train": self.X_train,
+            "y_train": self.y_train,
+            "X_test": self.X_test,
+        }
+
+        metadata = {
+            "task_type": self.task_type,
+            "use_retrieval": self.use_retrieval,
+        }
+
+        return arrays, metadata
+
+
+@dataclass
+class LimiXPredictResponse:
+    """Type-safe LimiX prediction response.
+
+    Contains predictions, optional class probabilities, and metadata.
+
+    Attributes:
+        predictions: Model predictions. Shape: (n_test_samples,)
+        metadata: Response metadata from backend (model_name, task_type, token_count, etc.)
+        probabilities: Class probabilities for classification. Shape: (n_test_samples, n_classes)
+                      None for regression tasks.
+    """
+
+    predictions: np.ndarray
+    """Predictions. Shape: (n_test_samples,)"""
+
+    metadata: dict[str, Any] = field(default_factory=dict)
+    """Response metadata from backend (e.g., model_name, task_type, token_count)"""
+
+    probabilities: np.ndarray | None = None
+    """Class probabilities (classification only). Shape: (n_test_samples, n_classes)"""
+
+    @classmethod
+    def from_arrays_and_metadata(
+        cls, arrays: dict[str, np.ndarray], metadata: dict[str, Any]
+    ) -> "LimiXPredictResponse":
+        """Construct response from deserialized Arrow data.
+
+        Args:
+            arrays: Dictionary of numpy arrays from Arrow deserialization
+            metadata: Metadata dictionary from Arrow schema
+
+        Returns:
+            LimiXPredictResponse instance
+
+        Raises:
+            ValueError: If predictions array is missing
+        """
+        predictions = arrays.get("predictions")
+        if predictions is None:
+            raise ValueError(f"Response missing 'predictions' array. Available: {list(arrays.keys())}")
+
+        probabilities = arrays.get("probabilities")  # Optional for classification
+
+        return cls(
+            predictions=predictions,
+            metadata=metadata,
+            probabilities=probabilities,
+        )
+
+    def __repr__(self) -> str:
+        """Return string representation of LimiX response.
+
+        Returns:
+            Human-readable string showing outputs and shapes
+        """
+        outputs = [f"predictions.shape={self.predictions.shape}"]
+        if self.probabilities is not None:
+            outputs.append(f"probabilities.shape={self.probabilities.shape}")
+
+        outputs_str = ", ".join(outputs)
+        return f"LimiXPredictResponse(outputs=[{outputs_str}], metadata={self.metadata})"

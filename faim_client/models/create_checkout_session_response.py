@@ -1,46 +1,33 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ValidationError")
+T = TypeVar("T", bound="CreateCheckoutSessionResponse")
 
 
 @_attrs_define
-class ValidationError:
-    """
+class CreateCheckoutSessionResponse:
+    """Response model for checkout session creation.
+
     Attributes:
-        loc (list[int | str]):
-        msg (str):
-        type_ (str):
+        checkout_url (str): URL to redirect user to for payment
     """
 
-    loc: list[int | str]
-    msg: str
-    type_: str
+    checkout_url: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        loc = []
-        for loc_item_data in self.loc:
-            loc_item: int | str
-            loc_item = loc_item_data
-            loc.append(loc_item)
-
-        msg = self.msg
-
-        type_ = self.type_
+        checkout_url = self.checkout_url
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "loc": loc,
-                "msg": msg,
-                "type": type_,
+                "checkout_url": checkout_url,
             }
         )
 
@@ -49,29 +36,14 @@ class ValidationError:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        loc = []
-        _loc = d.pop("loc")
-        for loc_item_data in _loc:
+        checkout_url = d.pop("checkout_url")
 
-            def _parse_loc_item(data: object) -> int | str:
-                return cast(int | str, data)
-
-            loc_item = _parse_loc_item(loc_item_data)
-
-            loc.append(loc_item)
-
-        msg = d.pop("msg")
-
-        type_ = d.pop("type")
-
-        validation_error = cls(
-            loc=loc,
-            msg=msg,
-            type_=type_,
+        create_checkout_session_response = cls(
+            checkout_url=checkout_url,
         )
 
-        validation_error.additional_properties = d
-        return validation_error
+        create_checkout_session_response.additional_properties = d
+        return create_checkout_session_response
 
     @property
     def additional_keys(self) -> list[str]:

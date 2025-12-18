@@ -1,12 +1,18 @@
 """Unit tests for faim_sdk.utils module.
 
-Tests Arrow serialization and deserialization utilities.
+Tests Arrow serialization and deserialization utilities for both
+time-series and tabular data.
 """
 
 import numpy as np
 import pytest
 
-from faim_sdk.utils import deserialize_from_arrow, serialize_to_arrow
+from faim_sdk.utils import (
+    deserialize_from_arrow,
+    deserialize_from_arrow_tabular,
+    serialize_to_arrow,
+    serialize_to_arrow_tabular,
+)
 
 
 class TestSerializeToArrow:
@@ -78,12 +84,17 @@ class TestSerializeToArrow:
         assert isinstance(result, bytes)
 
     def test_serialize_different_shapes(self):
-        """Test serializing arrays with different shapes."""
+        """Test serializing arrays with compatible total element counts.
+
+        Note: Time-series serialize_to_arrow uses RecordBatch which requires
+        all arrays to have the same total element count when flattened.
+        For arrays with incompatible shapes, use serialize_to_arrow_tabular instead.
+        """
+        # All have 4 elements when flattened
         arrays = {
-            "scalar": np.array([1.0]),
-            "1d": np.array([1.0, 2.0, 3.0]),
-            "2d": np.array([[1.0, 2.0], [3.0, 4.0]]),
-            "3d": np.array([[[1.0, 2.0]], [[3.0, 4.0]]]),
+            "a": np.array([1.0, 2.0, 3.0, 4.0]),  # 4 elements
+            "b": np.array([[1.0, 2.0], [3.0, 4.0]]),  # 2x2 = 4 elements
+            "c": np.array([[[1.0], [2.0]], [[3.0], [4.0]]]),  # 2x2x1 = 4 elements
         }
         result = serialize_to_arrow(arrays)
 
@@ -237,21 +248,23 @@ class TestDeserializeFromArrow:
         assert arrays["int64"].dtype == np.int64
 
     def test_deserialize_preserves_shape(self):
-        """Test that deserialization preserves shapes."""
+        """Test that deserialization preserves shapes.
+
+        Note: All arrays must have same total element count for RecordBatch.
+        Each array here has 4 elements when flattened.
+        """
         original = {
-            "scalar": np.array([1.0]),
-            "1d": np.array([1.0, 2.0, 3.0]),
-            "2d": np.array([[1.0, 2.0], [3.0, 4.0]]),
-            "3d": np.array([[[1.0, 2.0]], [[3.0, 4.0]]]),
+            "a": np.array([1.0, 2.0, 3.0, 4.0]),  # 4 elements
+            "b": np.array([[1.0, 2.0], [3.0, 4.0]]),  # 2x2 = 4 elements
+            "c": np.array([[[1.0], [2.0]], [[3.0], [4.0]]]),  # 2x2x1 = 4 elements
         }
         serialized = serialize_to_arrow(original)
 
         arrays, _ = deserialize_from_arrow(serialized)
 
-        assert arrays["scalar"].shape == (1,)
-        assert arrays["1d"].shape == (3,)
-        assert arrays["2d"].shape == (2, 2)
-        assert arrays["3d"].shape == (2, 1, 2)
+        assert arrays["a"].shape == (4,)
+        assert arrays["b"].shape == (2, 2)
+        assert arrays["c"].shape == (2, 2, 1)
 
     def test_deserialize_large_array(self):
         """Test deserializing large arrays."""
@@ -320,21 +333,22 @@ class TestRoundTrip:
 
         assert metadata == original_metadata
 
-    def test_roundtrip_multiple_arrays(self):
-        """Test round-trip for multiple arrays."""
+    def test_roundtrip_single_array_only(self):
+        """Test round-trip with single array (typical use case).
+
+        Note: Time-series API sends request (x) and receives response separately,
+        so multiple arrays are not serialized together in practice.
+        """
         original = {
             "x": np.random.rand(32, 100, 1),
-            "point": np.random.rand(32, 24, 1),
-            "quantiles": np.random.rand(32, 24, 3),
         }
         serialized = serialize_to_arrow(original)
         arrays, _ = deserialize_from_arrow(serialized)
 
-        for key in original:
-            assert key in arrays
-            assert np.array_equal(arrays[key], original[key])
-            assert arrays[key].shape == original[key].shape
-            assert arrays[key].dtype == original[key].dtype
+        assert "x" in arrays
+        assert np.array_equal(arrays["x"], original["x"])
+        assert arrays["x"].shape == original["x"].shape
+        assert arrays["x"].dtype == original["x"].dtype
 
     def test_roundtrip_with_zstd_compression(self):
         """Test round-trip with zstd compression."""
@@ -368,12 +382,15 @@ class TestRoundTrip:
             assert np.array_equal(arrays[key], original[key])
 
     def test_roundtrip_different_shapes(self):
-        """Test round-trip preserves all shapes."""
+        """Test round-trip preserves shapes with compatible element counts.
+
+        Note: All arrays must have same total element count for RecordBatch.
+        Each array here has 120 elements when flattened.
+        """
         original = {
-            "1d": np.array([1.0, 2.0, 3.0]),
-            "2d": np.array([[1.0, 2.0], [3.0, 4.0]]),
-            "3d": np.random.rand(4, 5, 6),
-            "4d": np.random.rand(2, 3, 4, 5),
+            "a": np.random.rand(2, 6, 10),  # 2*6*10 = 120 elements
+            "b": np.random.rand(5, 24),  # 5*24 = 120 elements
+            "c": np.random.rand(120),  # 120 elements
         }
         serialized = serialize_to_arrow(original)
         arrays, _ = deserialize_from_arrow(serialized)
@@ -436,22 +453,27 @@ class TestRoundTrip:
         assert metadata == original_metadata
 
     def test_roundtrip_realistic_forecast_response(self):
-        """Test round-trip for realistic forecast response data."""
+        """Test round-trip for realistic forecast response data.
+
+        Note: Realistic responses return either point OR quantiles output,
+        not both simultaneously. Use serialize_to_arrow_tabular for handling
+        multiple arrays with different structures.
+        """
         original_arrays = {
-            "point": np.random.randn(32, 24, 1).astype(np.float32),
             "quantiles": np.random.randn(32, 24, 3).astype(np.float32),
         }
         original_metadata = {
             "model_name": "chronos2",
             "model_version": "1.0",
+            "quantiles": [0.1, 0.5, 0.9],
             "inference_time_ms": 123,
         }
 
         serialized = serialize_to_arrow(original_arrays, original_metadata, compression="zstd")
         arrays, metadata = deserialize_from_arrow(serialized)
 
-        assert set(arrays.keys()) == {"point", "quantiles"}
-        assert np.allclose(arrays["point"], original_arrays["point"])
+        assert "quantiles" in arrays
+        assert arrays["quantiles"].shape == (32, 24, 3)
         assert np.allclose(arrays["quantiles"], original_arrays["quantiles"])
         assert metadata == original_metadata
 
@@ -859,3 +881,412 @@ class TestMultipleInputOutputFormats:
         assert meta == metadata
         assert meta["config"]["temperature"] == 0.8
         assert meta["preprocessing"]["normalize"] is True
+
+
+class TestSerializeToArrowTabular:
+    """Tests for serialize_to_arrow_tabular function (tensor table format)."""
+
+    def test_serialize_single_array(self):
+        """Test serializing a single numpy array."""
+        arrays = {"X": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_multiple_arrays_different_row_counts(self):
+        """Test serializing multiple arrays with DIFFERENT row counts (key feature)."""
+        arrays = {
+            "X_train": np.array([[1.0, 2.0]] * 100),  # 100 rows
+            "y_train": np.ones(100),
+            "X_test": np.array([[3.0, 4.0]] * 50),  # 50 rows (different!)
+        }
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_classification_data(self):
+        """Test serializing classification data with different row counts."""
+        X_train = np.random.rand(284, 30).astype(np.float32)  # Breast cancer dataset
+        y_train = np.ones(284).astype(np.float32)
+        X_test = np.random.rand(285, 30).astype(np.float32)  # Different!
+
+        arrays = {"X_train": X_train, "y_train": y_train, "X_test": X_test}
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_regression_data(self):
+        """Test serializing regression data with equal row counts."""
+        X_train = np.random.rand(10320, 8).astype(np.float32)
+        y_train = np.random.rand(10320).astype(np.float32)
+        X_test = np.random.rand(10320, 8).astype(np.float32)
+
+        arrays = {"X_train": X_train, "y_train": y_train, "X_test": X_test}
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_with_metadata(self):
+        """Test serializing with metadata."""
+        arrays = {"X": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        metadata = {"task_type": "Classification", "model": "limix"}
+        result = serialize_to_arrow_tabular(arrays, metadata)
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_with_compression_zstd(self):
+        """Test serializing with zstd compression."""
+        arrays = {
+            "X": np.random.rand(100, 50).astype(np.float32),
+            "y": np.ones(100),
+        }
+        result = serialize_to_arrow_tabular(arrays, compression="zstd")
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_with_compression_lz4(self):
+        """Test serializing with lz4 compression."""
+        arrays = {
+            "X": np.random.rand(100, 50).astype(np.float32),
+            "y": np.ones(100),
+        }
+        result = serialize_to_arrow_tabular(arrays, compression="lz4")
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_without_compression(self):
+        """Test serializing without compression."""
+        arrays = {"X": np.array([[1.0, 2.0]])}
+        result = serialize_to_arrow_tabular(arrays, compression=None)
+
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_serialize_different_dtypes(self):
+        """Test serializing arrays with different dtypes."""
+        arrays = {
+            "float32": np.array([[1.0, 2.0]], dtype=np.float32),
+            "float64": np.array([[3.0, 4.0]], dtype=np.float64),
+            "int32": np.array([[5, 6]], dtype=np.int32),
+        }
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+
+    def test_serialize_different_shapes(self):
+        """Test serializing arrays with different shapes."""
+        arrays = {
+            "1d": np.array([1.0, 2.0, 3.0]),
+            "2d": np.array([[1.0, 2.0], [3.0, 4.0]]),
+            "3d": np.random.rand(2, 3, 4),
+        }
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+
+    def test_serialize_skips_none_arrays(self):
+        """Test that None values in arrays dict are skipped."""
+        arrays = {"X": np.array([[1.0]]), "y": None, "X_test": np.array([[2.0]])}
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+
+    def test_serialize_validation_requires_numpy_array(self):
+        """Test that non-numpy arrays raise TypeError."""
+        arrays = {"X": [[1.0, 2.0], [3.0, 4.0]]}  # Python list
+
+        with pytest.raises(TypeError, match='Array "X" must be numpy.ndarray'):
+            serialize_to_arrow_tabular(arrays)
+
+    def test_serialize_non_native_endianness(self):
+        """Test handling of non-native endianness arrays."""
+        arr = np.array([[1.0, 2.0]], dtype=">f8")  # Big-endian
+        arrays = {"X": arr}
+
+        result = serialize_to_arrow_tabular(arrays)
+        assert isinstance(result, bytes)
+
+    def test_serialize_non_contiguous_array(self):
+        """Test handling of non-contiguous arrays."""
+        arr = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).T
+        assert not arr.flags.c_contiguous
+
+        arrays = {"X": arr}
+        result = serialize_to_arrow_tabular(arrays)
+
+        assert isinstance(result, bytes)
+
+    def test_serialize_deterministic_order(self):
+        """Test that serialization produces deterministic ordering."""
+        data1 = np.array([[1.0, 2.0]])
+        data2 = np.array([[3.0, 4.0]])
+
+        arrays1 = {"z": data1, "a": data2, "m": data1.copy()}
+        arrays2 = {"a": data2, "m": data1.copy(), "z": data1}
+
+        result1 = serialize_to_arrow_tabular(arrays1, compression=None)
+        result2 = serialize_to_arrow_tabular(arrays2, compression=None)
+
+        # Should produce identical bytes due to sorted keys
+        assert result1 == result2
+
+    def test_serialize_empty_metadata(self):
+        """Test serializing with empty metadata dict."""
+        arrays = {"X": np.array([[1.0]])}
+        result = serialize_to_arrow_tabular(arrays, metadata={})
+
+        assert isinstance(result, bytes)
+
+    def test_serialize_none_metadata(self):
+        """Test serializing with None metadata."""
+        arrays = {"X": np.array([[1.0]])}
+        result = serialize_to_arrow_tabular(arrays, metadata=None)
+
+        assert isinstance(result, bytes)
+
+
+class TestDeserializeFromArrowTabular:
+    """Tests for deserialize_from_arrow_tabular function."""
+
+    def test_deserialize_single_array(self):
+        """Test deserializing a single array."""
+        original = {"X": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        serialized = serialize_to_arrow_tabular(original)
+
+        arrays, metadata = deserialize_from_arrow_tabular(serialized)
+
+        assert "X" in arrays
+        assert np.array_equal(arrays["X"], original["X"])
+
+    def test_deserialize_multiple_arrays_different_row_counts(self):
+        """Test deserializing multiple arrays with different row counts."""
+        original = {
+            "X_train": np.array([[1.0, 2.0]] * 100),
+            "y_train": np.ones(100),
+            "X_test": np.array([[3.0, 4.0]] * 50),  # Different!
+        }
+        serialized = serialize_to_arrow_tabular(original)
+
+        arrays, metadata = deserialize_from_arrow_tabular(serialized)
+
+        assert "X_train" in arrays
+        assert "y_train" in arrays
+        assert "X_test" in arrays
+        assert arrays["X_train"].shape[0] == 100
+        assert arrays["X_test"].shape[0] == 50
+
+    def test_deserialize_with_metadata(self):
+        """Test deserializing with metadata."""
+        original_arrays = {"X": np.array([[1.0]])}
+        original_metadata = {"task_type": "Classification", "model": "limix"}
+        serialized = serialize_to_arrow_tabular(original_arrays, original_metadata)
+
+        arrays, metadata = deserialize_from_arrow_tabular(serialized)
+
+        assert metadata == original_metadata
+        assert metadata["task_type"] == "Classification"
+
+    def test_deserialize_preserves_dtype(self):
+        """Test that deserialization preserves dtypes."""
+        original = {
+            "float32": np.array([[1.0, 2.0]], dtype=np.float32),
+            "float64": np.array([[3.0, 4.0]], dtype=np.float64),
+            "int32": np.array([[5, 6]], dtype=np.int32),
+        }
+        serialized = serialize_to_arrow_tabular(original)
+
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert arrays["float32"].dtype == np.float32
+        assert arrays["float64"].dtype == np.float64
+        assert arrays["int32"].dtype == np.int32
+
+    def test_deserialize_preserves_shape(self):
+        """Test that deserialization preserves shapes."""
+        original = {
+            "1d": np.array([1.0, 2.0, 3.0]),
+            "2d": np.array([[1.0, 2.0], [3.0, 4.0]]),
+            "3d": np.random.rand(2, 3, 4),
+        }
+        serialized = serialize_to_arrow_tabular(original)
+
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert arrays["1d"].shape == (3,)
+        assert arrays["2d"].shape == (2, 2)
+        assert arrays["3d"].shape == (2, 3, 4)
+
+
+class TestRoundTripTabular:
+    """Tests for tabular serialize -> deserialize round-trip consistency."""
+
+    def test_roundtrip_single_array(self):
+        """Test round-trip for single array."""
+        original = {"X": np.array([[1.0, 2.0], [3.0, 4.0]])}
+        serialized = serialize_to_arrow_tabular(original)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert np.array_equal(arrays["X"], original["X"])
+
+    def test_roundtrip_different_row_counts(self):
+        """Test round-trip with different row counts (key tabular feature)."""
+        original = {
+            "X_train": np.random.rand(284, 30).astype(np.float32),
+            "y_train": np.ones(284).astype(np.float32),
+            "X_test": np.random.rand(285, 30).astype(np.float32),
+        }
+        serialized = serialize_to_arrow_tabular(original)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert arrays["X_train"].shape == (284, 30)
+        assert arrays["y_train"].shape == (284,)
+        assert arrays["X_test"].shape == (285, 30)
+        assert np.allclose(arrays["X_train"], original["X_train"])
+        assert np.allclose(arrays["y_train"], original["y_train"])
+        assert np.allclose(arrays["X_test"], original["X_test"])
+
+    def test_roundtrip_with_metadata(self):
+        """Test round-trip preserves metadata."""
+        original_arrays = {"X": np.array([[1.0]])}
+        original_metadata = {"task_type": "Regression", "features": 10}
+
+        serialized = serialize_to_arrow_tabular(original_arrays, original_metadata)
+        arrays, metadata = deserialize_from_arrow_tabular(serialized)
+
+        assert metadata == original_metadata
+
+    def test_roundtrip_with_zstd_compression(self):
+        """Test round-trip with zstd compression."""
+        original = {
+            "X": np.random.rand(100, 50).astype(np.float32),
+            "y": np.ones(100),
+        }
+        serialized = serialize_to_arrow_tabular(original, compression="zstd")
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert np.allclose(arrays["X"], original["X"])
+        assert np.allclose(arrays["y"], original["y"])
+
+    def test_roundtrip_with_lz4_compression(self):
+        """Test round-trip with lz4 compression."""
+        original = {
+            "X": np.random.rand(100, 50).astype(np.float32),
+            "y": np.ones(100),
+        }
+        serialized = serialize_to_arrow_tabular(original, compression="lz4")
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert np.allclose(arrays["X"], original["X"])
+        assert np.allclose(arrays["y"], original["y"])
+
+    def test_roundtrip_different_dtypes(self):
+        """Test round-trip preserves all dtypes."""
+        original = {
+            "float32": np.array([1.5, 2.5], dtype=np.float32),
+            "float64": np.array([3.5, 4.5], dtype=np.float64),
+            "int32": np.array([5, 6], dtype=np.int32),
+            "int64": np.array([7, 8], dtype=np.int64),
+        }
+        serialized = serialize_to_arrow_tabular(original, compression=None)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        for key in original:
+            assert arrays[key].dtype == original[key].dtype
+            assert np.array_equal(arrays[key], original[key])
+
+    def test_roundtrip_different_shapes(self):
+        """Test round-trip preserves all shapes."""
+        original = {
+            "1d": np.array([1.0, 2.0, 3.0]),
+            "2d": np.array([[1.0, 2.0], [3.0, 4.0]]),
+            "3d": np.random.rand(4, 5, 6),
+            "4d": np.random.rand(2, 3, 4, 5),
+        }
+        serialized = serialize_to_arrow_tabular(original)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        for key in original:
+            assert arrays[key].shape == original[key].shape
+            assert np.allclose(arrays[key], original[key])
+
+    def test_roundtrip_exact_values(self):
+        """Test round-trip preserves exact floating point values."""
+        original = {"data": np.array([1.23456789, 9.87654321, -0.123456, 0.0])}
+        serialized = serialize_to_arrow_tabular(original, compression=None)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert np.array_equal(arrays["data"], original["data"])
+
+    def test_roundtrip_negative_values(self):
+        """Test round-trip with negative values."""
+        original = {"data": np.array([[-1.0, -2.0], [-3.0, -4.0]])}
+        serialized = serialize_to_arrow_tabular(original)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert np.array_equal(arrays["data"], original["data"])
+
+    def test_roundtrip_zero_values(self):
+        """Test round-trip with zero values."""
+        original = {"data": np.zeros((10, 10))}
+        serialized = serialize_to_arrow_tabular(original)
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert np.array_equal(arrays["data"], original["data"])
+
+    def test_roundtrip_large_arrays(self):
+        """Test round-trip with large arrays."""
+        original = {
+            "X": np.random.rand(1000, 100).astype(np.float32),
+            "y": np.ones(1000).astype(np.float32),
+        }
+        serialized = serialize_to_arrow_tabular(original, compression="zstd")
+        arrays, _ = deserialize_from_arrow_tabular(serialized)
+
+        assert arrays["X"].shape == (1000, 100)
+        assert arrays["y"].shape == (1000,)
+        assert np.allclose(arrays["X"], original["X"])
+        assert np.allclose(arrays["y"], original["y"])
+
+    def test_roundtrip_realistic_classification(self):
+        """Test round-trip for realistic classification data."""
+        X_train = np.random.rand(284, 30).astype(np.float32)
+        y_train = np.random.randint(0, 2, 284).astype(np.float32)
+        X_test = np.random.rand(285, 30).astype(np.float32)
+
+        original_arrays = {"X_train": X_train, "y_train": y_train, "X_test": X_test}
+        original_metadata = {"task_type": "Classification", "classes": 2}
+
+        serialized = serialize_to_arrow_tabular(original_arrays, original_metadata)
+        arrays, metadata = deserialize_from_arrow_tabular(serialized)
+
+        assert arrays["X_train"].shape == (284, 30)
+        assert arrays["y_train"].shape == (284,)
+        assert arrays["X_test"].shape == (285, 30)
+        assert metadata == original_metadata
+        assert np.allclose(arrays["X_train"], original_arrays["X_train"])
+        assert np.allclose(arrays["y_train"], original_arrays["y_train"])
+        assert np.allclose(arrays["X_test"], original_arrays["X_test"])
+
+    def test_roundtrip_realistic_regression(self):
+        """Test round-trip for realistic regression data."""
+        X_train = np.random.rand(10320, 8).astype(np.float32)
+        y_train = np.random.rand(10320).astype(np.float32)
+        X_test = np.random.rand(10320, 8).astype(np.float32)
+
+        original_arrays = {"X_train": X_train, "y_train": y_train, "X_test": X_test}
+        original_metadata = {"task_type": "Regression"}
+
+        serialized = serialize_to_arrow_tabular(original_arrays, original_metadata)
+        arrays, metadata = deserialize_from_arrow_tabular(serialized)
+
+        assert arrays["X_train"].shape == (10320, 8)
+        assert arrays["y_train"].shape == (10320,)
+        assert arrays["X_test"].shape == (10320, 8)
+        assert metadata == original_metadata

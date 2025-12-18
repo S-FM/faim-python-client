@@ -1,46 +1,38 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ValidationError")
+T = TypeVar("T", bound="StartUploadResponse")
 
 
 @_attrs_define
-class ValidationError:
-    """
+class StartUploadResponse:
+    """Response payload for dataset upload initiation.
+
     Attributes:
-        loc (list[int | str]):
-        msg (str):
-        type_ (str):
+        upload_url (str): Pre-signed URL for uploading the dataset.
+        dataset_id (str): Created dataset identifier.
     """
 
-    loc: list[int | str]
-    msg: str
-    type_: str
+    upload_url: str
+    dataset_id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        loc = []
-        for loc_item_data in self.loc:
-            loc_item: int | str
-            loc_item = loc_item_data
-            loc.append(loc_item)
+        upload_url = self.upload_url
 
-        msg = self.msg
-
-        type_ = self.type_
+        dataset_id = self.dataset_id
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "loc": loc,
-                "msg": msg,
-                "type": type_,
+                "upload_url": upload_url,
+                "dataset_id": dataset_id,
             }
         )
 
@@ -49,29 +41,17 @@ class ValidationError:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        loc = []
-        _loc = d.pop("loc")
-        for loc_item_data in _loc:
+        upload_url = d.pop("upload_url")
 
-            def _parse_loc_item(data: object) -> int | str:
-                return cast(int | str, data)
+        dataset_id = d.pop("dataset_id")
 
-            loc_item = _parse_loc_item(loc_item_data)
-
-            loc.append(loc_item)
-
-        msg = d.pop("msg")
-
-        type_ = d.pop("type")
-
-        validation_error = cls(
-            loc=loc,
-            msg=msg,
-            type_=type_,
+        start_upload_response = cls(
+            upload_url=upload_url,
+            dataset_id=dataset_id,
         )
 
-        validation_error.additional_properties = d
-        return validation_error
+        start_upload_response.additional_properties = d
+        return start_upload_response
 
     @property
     def additional_keys(self) -> list[str]:
