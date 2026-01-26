@@ -467,15 +467,13 @@ See the `examples/` directory for complete Jupyter notebook examples:
 
 2. **Compression**: Use `compression="zstd"` for large payloads (default, recommended)
 
-3. **Async for Concurrent Requests**: Use `forecast_async()` with `asyncio.gather()` for parallel processing
-
 ### General (All Models)
 
 4. **Connection Pooling**: Reuse client instances across requests instead of creating new ones
 
 ## Support
 
-- **Email**: support@faim.it.com
+- **Email**: info@faim.it.com
 
 ## License
 
@@ -489,7 +487,7 @@ If you use FAIM in your research, please cite:
 @software{faim_sdk,
   title = {FAIM SDK: Foundation AI Models for Time Series Forecasting},
   author = {FAIM Team},
-  year = {2024},
+  year = {2025},
   url = {https://github.com/S-FM/faim-python-client}
 }
 ```
